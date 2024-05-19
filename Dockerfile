@@ -23,4 +23,6 @@ COPY --from=builder /build/templates/* /app/templates
 COPY --from=builder /build/.env /app
 RUN chmod +x /app/miner-and-commander
 
+ENV TZ="Europe/Rome"
+
 ENTRYPOINT ["/app/miner-and-commander"]
