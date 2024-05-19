@@ -2,11 +2,10 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"html/template"
+	"log"
 	"time"
 
-	"github.com/misterdelle/miner-and-commander/logger"
 	"github.com/vanng822/go-premailer/premailer"
 	mail "github.com/xhit/go-simple-mail/v2"
 )
@@ -70,7 +69,7 @@ func (m *Mail) SendSMTPMessage(msg Message) error {
 
 	smtpClient, err := server.Connect()
 	if err != nil {
-		logger.Logger.Error(fmt.Sprintf("Errore: %s", err))
+		log.Printf("Errore: %s", err)
 		return err
 	}
 
@@ -95,7 +94,7 @@ func (m *Mail) SendSMTPMessage(msg Message) error {
 
 	err = email.Send(smtpClient)
 	if err != nil {
-		logger.Logger.Error(fmt.Sprintf("Errore: %s", err))
+		log.Printf("Errore: %s", err)
 		return err
 	}
 

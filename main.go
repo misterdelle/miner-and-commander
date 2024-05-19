@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/joho/godotenv"
-	"github.com/misterdelle/miner-and-commander/logger"
 	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
 )
 
@@ -66,13 +65,12 @@ func init() {
 	}
 
 	app.LogFile = os.Getenv("LogFile")
-	logger.InitializeLogger(app.LogFile)
 
 	if profilePassed {
-		logger.Logger.Info(fmt.Sprintf("app.Env: %s", app.Env))
+		log.Printf("app.Env: %s", app.Env)
 	} else {
-		logger.Logger.Info("app.Env NON settato, carico i dati dal file .env")
-		logger.Logger.Info(fmt.Sprintf("app.Env: %s", app.Env))
+		log.Println("app.Env NON settato, carico i dati dal file .env")
+		log.Printf("app.Env: %s", app.Env)
 	}
 
 	app.WebPort = os.Getenv("WebPort")
@@ -196,7 +194,7 @@ func main() {
 
 		if startCronTime != "-" {
 			taskFascia, err := taskScheduler.ScheduleWithCron(func(ctx context.Context) {
-				logger.Logger.Info(fmt.Sprintf("Scheduled Task With Cron: %v", powerThreshold))
+				log.Printf("Scheduled Task With Cron: %v", powerThreshold)
 
 				var msgBody []string
 
@@ -243,7 +241,7 @@ func main() {
 				app.sendEMail(msgBody)
 			}, startCronTime)
 			if err != nil {
-				logger.Logger.Error(fmt.Sprintf("Errore: %s", err))
+				log.Printf("Errore: %s", err)
 				return
 			}
 
@@ -390,8 +388,7 @@ func (app *Config) listenForShutdown() {
 
 func (app *Config) shutdown() {
 	// perform any cleanup tasks
-	logger.Logger.Info("Shutting down application...")
-	logger.CloseLoggerFile()
+	log.Println("Shutting down application...")
 }
 
 func (app *Config) serve() {

@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine3.17 as builder
+FROM golang:1.22.3-alpine3.19 as builder
 
 WORKDIR /build
 
@@ -14,9 +14,13 @@ WORKDIR /
 
 RUN apk upgrade --no-cache --ignore alpine-baselayout --available && \
     apk --no-cache add ca-certificates tzdata && \
-    rm -rf /var/cache/apk/*
+    rm -rf /var/cache/apk/* && \
+    mkdir -p /app && \
+    mkdir -p /app/templates
 
-COPY --from=builder /build/miner-and-commander .
-RUN chmod +x miner-and-commander
+COPY --from=builder /build/miner-and-commander /app/miner-and-commander
+COPY --from=builder /build/templates/* /app/templates
+COPY --from=builder /build/.env /app
+RUN chmod +x /app/miner-and-commander
 
-ENTRYPOINT ["/miner-and-commander"]
+#ENTRYPOINT ["/app/miner-and-commander"]

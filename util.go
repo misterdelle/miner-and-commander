@@ -2,11 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"strings"
-
-	"github.com/misterdelle/miner-and-commander/logger"
 )
 
 func (app *Config) createMailer() Mail {
@@ -42,7 +39,7 @@ func (app *Config) sendEMail(msgBody []string) {
 
 		err := app.Mailer.SendSMTPMessage(msg)
 		if err != nil {
-			logger.Logger.Error(fmt.Sprintf("Errore: %s", err))
+			log.Printf("Errore: %s", err)
 			return
 		}
 
