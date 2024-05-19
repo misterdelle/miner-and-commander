@@ -1,0 +1,6 @@
+services:
+  invt:
+    image: misterdelle/miner-and-commander
+    restart: unless-stopped
+    volumes:
+      - "./.env:/.env"
