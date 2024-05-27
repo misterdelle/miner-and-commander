@@ -3,10 +3,13 @@ APPLICATION_NAME ?= miner-and-commander
 GIT_HASH ?= $(shell git log --format="%h" -n 1)
 
 build:
-	go build -o ${APPLICATION_NAME}.exe
+	env GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o build/${APPLICATION_NAME}.exe
+
+build-linux:
+	env GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o build/${APPLICATION_NAME}-linux
 
 build-arm:
-	env GOOS=linux GOARCH=arm GOARM=5 go build -o ${APPLICATION_NAME}-arm
+	env GOOS=linux GOARCH=arm GOARM=5 go build -ldflags "-s -w" -o build/${APPLICATION_NAME}-arm
 
 build-docker-amd:
 	docker build --tag ${DOCKER_USERNAME}/${APPLICATION_NAME}:${GIT_HASH} .

@@ -2,3 +2,5 @@
 .env.prod
 .env.svil.local
 .env.svil.remote
+build/
+pkg/
