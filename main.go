@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"codnect.io/chrono"
 	"google.golang.org/grpc"
@@ -18,7 +19,8 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/joho/godotenv"
-	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
+	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos"
+	pbV1 "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
 )
 
 // Embed the entire directory.
@@ -49,6 +51,17 @@ type Config struct {
 }
 
 var app Config
+
+var ctx context.Context
+var authCtx context.Context
+
+// var headerMD metadata.MD
+
+var authClient pbV1.AuthenticationServiceClient
+var configClient pbV1.ConfigurationServiceClient
+var performanceClient pbV1.PerformanceServiceClient
+var actionsClient pbV1.ActionsServiceClient
+var apiVersionClient pb.ApiVersionServiceClient
 
 func init() {
 	//
@@ -123,21 +136,16 @@ func main() {
 	}
 	defer conn.Close()
 
-	authClient := pb.NewAuthenticationServiceClient(conn)
-	configClient := pb.NewConfigurationServiceClient(conn)
-	performanceClient := pb.NewPerformanceServiceClient(conn)
-	actionsClient := pb.NewActionsServiceClient(conn)
+	authClient = pbV1.NewAuthenticationServiceClient(conn)
+	configClient = pbV1.NewConfigurationServiceClient(conn)
+	performanceClient = pbV1.NewPerformanceServiceClient(conn)
+	actionsClient = pbV1.NewActionsServiceClient(conn)
+	apiVersionClient = pb.NewApiVersionServiceClient(conn)
 
-	// Login
-	log.Println("Logging in...")
+	ctx = context.Background()
 	headerMD := metadata.MD{}
-	ctx := context.Background()
-	loginReq := &pb.LoginRequest{
-		Username: app.MinerUsername,
-		Password: app.MinerPassword,
-	}
 
-	_, err = authClient.Login(ctx, loginReq, grpc.Header(&headerMD))
+	_, err = RetryWithBackoff(Login, 1_000_000, 2*time.Second, &headerMD)
 	if err != nil {
 		log.Fatalf("could not login: %v", err)
 	} else {
@@ -154,15 +162,22 @@ func main() {
 
 	// Attach auth token to context
 	md := metadata.New(map[string]string{"authorization": authToken})
-	authCtx := metadata.NewOutgoingContext(ctx, md)
+	authCtx = metadata.NewOutgoingContext(ctx, md)
+
+	// Get Miner Firmware Version
+	log.Println("Fetching miner firmware version")
+	apiVersion, err := RetryWithBackoff(GetAPIVersion, 1_000_000, 2*time.Second, authCtx)
+	if err != nil {
+		log.Fatalf("could not get miner firmware version: %v", err)
+	}
+	log.Println("apiVersion: ", apiVersion.(*pb.ApiVersion))
 
 	// Get Miner Configuration
 	log.Println("Fetching miner configuration")
-	minerConfigResponse, err := configClient.GetMinerConfiguration(authCtx, &pb.GetMinerConfigurationRequest{})
+	minerConfigResponse, err := RetryWithBackoff(GetMinerConfiguration, 1_000_000, 2*time.Second, authCtx)
 	if err != nil {
 		log.Fatalf("could not get miner configuration: %v", err)
 	}
-
 	log.Println("minerConfigResponse: ", minerConfigResponse)
 
 	// Listen for signals
@@ -186,7 +201,7 @@ func main() {
 					 */
 					log.Println("Stopping miner")
 
-					_, err = actionsClient.Stop(authCtx, &pb.StopRequest{})
+					_, err := RetryWithBackoff(MinerStop, 1_000_000, 2*time.Second, authCtx)
 					if err != nil {
 						log.Println("could not stop miner", err)
 					}
@@ -200,19 +215,14 @@ func main() {
 
 					log.Println("Starting miner")
 
-					_, err = actionsClient.Start(authCtx, &pb.StartRequest{})
+					_, err := RetryWithBackoff(MinerStart, 1_000_000, 2*time.Second, authCtx)
 					if err != nil {
 						log.Println("could not start miner", err)
 					}
 
 					log.Println("Setting Power Target to ", powerThreshold)
 
-					_, err = performanceClient.SetPowerTarget(authCtx, &pb.SetPowerTargetRequest{
-						SaveAction: pb.SaveAction_SAVE_ACTION_SAVE_AND_APPLY,
-						PowerTarget: &pb.Power{
-							Watt: powerThreshold,
-						},
-					})
+					_, err = RetryWithBackoff(MinerSetPowerTarget, 1_000_000, 2*time.Second, authCtx, powerThreshold)
 					if err != nil {
 						log.Printf("could not set power target: %v", err)
 					}
