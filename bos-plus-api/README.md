@@ -5,19 +5,20 @@ This repository contains protocol buffers for the new Braiins OS+ Public API, wh
 
 ### Versions
 
-| Public API Version | BOS+ version |
-|--------------------|--------------|
-| 1.1.0              | 24.04        |
-| 1.0.0              | 24.03        |
-| 1.0.0-beta.6       | 24.02        |
-| 1.0.0-beta.5       | 23.12        |
-| 1.0.0-beta.4       | 23.10.1      |
-| 1.0.0-beta.3       | 23.10        |
-| 1.0.0-beta.2       | 23.08        |
-| 1.0.0-beta.1       | 23.05        |
-| 1.0.0-beta         | 23.04        |
-| 1.0.0-alpha.1      | 23.03.3      |
-| 1.0.0-alpha        | 23.03        |
+| Public API Version | BOS version |
+|--------------------|-------------|
+| 1.2.0              | 24.06       |
+| 1.1.0              | 24.04       |
+| 1.0.0              | 24.03       |
+| 1.0.0-beta.6       | 24.02       |
+| 1.0.0-beta.5       | 23.12       |
+| 1.0.0-beta.4       | 23.10.1     |
+| 1.0.0-beta.3       | 23.10       |
+| 1.0.0-beta.2       | 23.08       |
+| 1.0.0-beta.1       | 23.05       |
+| 1.0.0-beta         | 23.04       |
+| 1.0.0-alpha.1      | 23.03.3     |
+| 1.0.0-alpha        | 23.03       |
 
 ### Overview
 
@@ -215,6 +216,7 @@ Contains miner related messages and **MinerService** with various methods to rea
 * **GetMinerStatus** - method to fetch miner status,
 * **GetMinerDetails** - method to read miner details info like model, IP, uptime, etc.,
 * **GetMinerStats** - method to read aggregated miner stats,
+* **GetErrors** - method to get all miner errors,
 * **GetHashboards** - method to read miner hashboards state and statistics,
 * **GetSupportArchive** - method to download BOS support archive,
 * **EnableHashboards** - method to enable hashboards,
@@ -248,6 +250,7 @@ Contains pools related messages and **PoolService** with various methods to read
 * **CreatePoolGroup** - method to create pool group
 * **UpdatePoolGroup** - method to update default pool group,
 * **RemovePoolGroup** - method to remove pool group.
+* **SetPoolGroups** - method to set all pool groups at once.
 
 #### 12. proto/bos/v1/units.proto
 Contains protobuf messages representing various units like Voltage, Frequency, etc.

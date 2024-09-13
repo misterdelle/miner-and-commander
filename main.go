@@ -15,9 +15,10 @@ import (
 
 	"codnect.io/chrono"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/joho/godotenv"
 	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos"
 	pbV1 "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
@@ -28,6 +29,21 @@ import (
 //go:embed templates
 var templates embed.FS
 
+// var ErrGetMinerStats = errors.New("error getting miner stats")
+// var BOSminerNotRunningError = errors.New("BOSminer is not running")
+// var BOSminerAPIConnectionError = errors.New("BOSminer API connection error: Connection refused (os error 111)")
+// var BOSminerAPIConnectionError = errors.New("os error 111")
+
+type ErrGetMinerStats struct {
+	s string
+}
+
+type AuthenticationToken struct {
+	Key      string
+	Value    string
+	TimeOutS int
+}
+
 type Config struct {
 	Env     string
 	WebPort string
@@ -36,7 +52,8 @@ type Config struct {
 	MinerUsername string
 	MinerPassword string
 
-	fasceMap map[string]uint64
+	StartTimer bool
+	fasceMap   map[string]uint64
 
 	EMailSend         bool
 	EMailSMTPHost     string
@@ -48,6 +65,8 @@ type Config struct {
 	EMailTo      string
 	EMailSubject string
 	Mailer       Mail
+
+	AuthToken AuthenticationToken
 }
 
 var app Config
@@ -55,13 +74,12 @@ var app Config
 var ctx context.Context
 var authCtx context.Context
 
-// var headerMD metadata.MD
-
 var authClient pbV1.AuthenticationServiceClient
 var configClient pbV1.ConfigurationServiceClient
 var performanceClient pbV1.PerformanceServiceClient
 var actionsClient pbV1.ActionsServiceClient
 var apiVersionClient pb.ApiVersionServiceClient
+var minerServiceClient pbV1.MinerServiceClient
 
 func init() {
 	//
@@ -99,6 +117,8 @@ func init() {
 	app.MinerUsername = os.Getenv("MinerUsername")
 	app.MinerPassword = os.Getenv("MinerPassword")
 
+	app.StartTimer, _ = strconv.ParseBool(os.Getenv("StartTimer"))
+
 	// Thresholds configuration
 	fascia1PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia1PowerThreshold"))
 	fascia2PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia2PowerThreshold"))
@@ -126,11 +146,39 @@ func init() {
 
 	app.Mailer = app.createMailer()
 
+	//
+	// Set up Authentication Token
+	//
+	authToken := AuthenticationToken{
+		Key:      "authorization",
+		Value:    "",
+		TimeOutS: 0,
+	}
+	app.AuthToken = authToken
+
 }
 
 func main() {
+
+	retryOpts := []retry.CallOption{
+		retry.WithMax(1_000),
+		retry.WithBackoff(retry.BackoffExponential(100 * time.Millisecond)),
+		retry.WithCodes(codes.Unavailable),
+		retry.WithOnRetryCallback(OnRetryCallback),
+	}
+
+	credsOpt := grpc.WithTransportCredentials(insecure.NewCredentials())
+
+	opts := []grpc.DialOption{
+		credsOpt,
+		grpc.WithChainUnaryInterceptor(
+			retry.UnaryClientInterceptor(retryOpts...),
+			unaryAuthInterceptor,
+		),
+	}
+
 	// Set up a connection to the server.
-	conn, err := grpc.NewClient(app.MinerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	conn, err := grpc.NewClient(app.MinerAddress, opts...)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -141,104 +189,111 @@ func main() {
 	performanceClient = pbV1.NewPerformanceServiceClient(conn)
 	actionsClient = pbV1.NewActionsServiceClient(conn)
 	apiVersionClient = pb.NewApiVersionServiceClient(conn)
+	minerServiceClient = pbV1.NewMinerServiceClient(conn)
 
 	ctx = context.Background()
-	headerMD := metadata.MD{}
-
-	_, err = RetryWithBackoff(Login, 1_000_000, 2*time.Second, &headerMD)
-	if err != nil {
-		log.Fatalf("could not login: %v", err)
-	} else {
-		log.Println("Login successful")
-	}
-
-	authTokens := headerMD.Get("authorization")
-	if len(authTokens) == 0 {
-		log.Fatal("authorization token not found in headers")
-	}
-	authToken := authTokens[0] // Taking the first token
-
-	log.Println("authToken: ", authToken)
-
-	// Attach auth token to context
-	md := metadata.New(map[string]string{"authorization": authToken})
-	authCtx = metadata.NewOutgoingContext(ctx, md)
 
 	// Get Miner Firmware Version
+	// Non è necessaria la login
 	log.Println("Fetching miner firmware version")
-	apiVersion, err := RetryWithBackoff(GetAPIVersion, 1_000_000, 2*time.Second, authCtx)
+	apiVersion, err := GetAPIVersion(ctx)
 	if err != nil {
 		log.Fatalf("could not get miner firmware version: %v", err)
 	}
-	log.Println("apiVersion: ", apiVersion.(*pb.ApiVersion))
+	// log.Println("apiVersion: ", apiVersion.(*pb.ApiVersion))
+	log.Println("apiVersion: ", apiVersion)
 
-	// Get Miner Configuration
-	log.Println("Fetching miner configuration")
-	minerConfigResponse, err := RetryWithBackoff(GetMinerConfiguration, 1_000_000, 2*time.Second, authCtx)
+	err = app.LoginWrapper()
 	if err != nil {
-		log.Fatalf("could not get miner configuration: %v", err)
+		log.Fatalf("could not login: %v", err)
 	}
-	log.Println("minerConfigResponse: ", minerConfigResponse)
 
 	// Listen for signals
 	go app.listenForShutdown()
 
+	// Schedules the check and eventually refresh of the authentication token
 	taskScheduler := chrono.NewDefaultTaskScheduler()
 
-	for k, v := range app.fasceMap {
-		startCronTime := k
-		powerThreshold := v
+	secondsToWait := time.Duration(app.AuthToken.TimeOutS) * time.Second
 
-		if startCronTime != "-" {
-			taskFascia, err := taskScheduler.ScheduleWithCron(func(ctx context.Context) {
-				log.Printf("Scheduled Task With Cron: %v", powerThreshold)
+	_, err = taskScheduler.ScheduleWithFixedDelay(func(ctx context.Context) {
+		log.Printf("Fixed Delay Task every %s", secondsToWait)
 
-				var msgBody []string
+		if app.AuthToken.Value != "" {
+			log.Print("Starting refresh authentication token...")
 
-				if powerThreshold == 0 {
-					/*
-					* Se la powerThreshold è uguale zero spengo il miner
-					 */
-					log.Println("Stopping miner")
-
-					_, err := RetryWithBackoff(MinerStop, 1_000_000, 2*time.Second, authCtx)
-					if err != nil {
-						log.Println("could not stop miner", err)
-					}
-
-					msgBody = append(msgBody, "Stopped miner")
-				} else {
-					/*
-					* Se la powerThreshold è maggiore di zero nel dubbio lo faccio partire e poi
-					* setto la powerThreshold sul miner
-					 */
-
-					log.Println("Starting miner")
-
-					_, err := RetryWithBackoff(MinerStart, 1_000_000, 2*time.Second, authCtx)
-					if err != nil {
-						log.Println("could not start miner", err)
-					}
-
-					log.Println("Setting Power Target to ", powerThreshold)
-
-					_, err = RetryWithBackoff(MinerSetPowerTarget, 1_000_000, 2*time.Second, authCtx, powerThreshold)
-					if err != nil {
-						log.Printf("could not set power target: %v", err)
-					}
-
-					msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v", powerThreshold))
-				}
-
-				app.sendEMail(msgBody)
-			}, startCronTime)
+			err = app.LoginWrapper()
 			if err != nil {
-				log.Printf("Errore: %s", err)
-				return
+				log.Fatalf("could not login: %v", err)
 			}
 
-			taskFascia.IsCancelled()
+			log.Print("Ending refresh authentication token...")
 		}
+	}, secondsToWait)
+	if err == nil {
+		log.Print("Task has been scheduled successfully.")
+	}
+	// log.Print("task: ", task)
+
+	if app.StartTimer {
+		// taskScheduler := chrono.NewDefaultTaskScheduler()
+
+		for k, v := range app.fasceMap {
+			startCronTime := k
+			powerThreshold := v
+
+			if startCronTime != "-" {
+				taskFascia, err := taskScheduler.ScheduleWithCron(func(ctx context.Context) {
+					log.Printf("Scheduled Task With Cron: %v", powerThreshold)
+
+					var msgBody []string
+
+					if powerThreshold == 0 {
+						/*
+						* Se la powerThreshold è uguale zero spengo il miner
+						 */
+						log.Println("Stopping miner")
+
+						_, err := MinerStop(authCtx)
+						if err != nil {
+							log.Println("could not stop miner", err)
+						}
+
+						msgBody = append(msgBody, "Stopped miner")
+					} else {
+						/*
+						* Se la powerThreshold è maggiore di zero nel dubbio lo faccio partire e poi
+						* setto la powerThreshold sul miner
+						 */
+
+						log.Println("Starting miner")
+
+						_, err := MinerStart(authCtx)
+						if err != nil {
+							log.Println("could not start miner", err)
+						}
+
+						log.Println("Setting Power Target to ", powerThreshold)
+
+						_, err = MinerSetPowerTarget(authCtx, powerThreshold)
+						if err != nil {
+							log.Printf("could not set power target: %v", err)
+						}
+
+						msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v", powerThreshold))
+					}
+
+					app.sendEMail(msgBody)
+				}, startCronTime)
+				if err != nil {
+					log.Printf("Errore: %s", err)
+					return
+				}
+
+				taskFascia.IsCancelled()
+			}
+		}
+
 	}
 
 	//
@@ -255,7 +310,6 @@ func (app *Config) listenForShutdown() {
 
 	app.shutdown()
 	os.Exit(0)
-
 }
 
 func (app *Config) shutdown() {
@@ -277,4 +331,12 @@ func (app *Config) serve() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func OnRetryCallback(ctx context.Context, attempt uint, err error) {
+	log.Printf("grpc_retry attempt: %d, backoff for %v", attempt, err)
+}
+
+func (e ErrGetMinerStats) Error() string {
+	return e.s
 }

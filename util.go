@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 
@@ -66,8 +67,7 @@ func formatJSON(str []byte, any interface{}) string {
 }
 
 // Get Miner Configuration
-func GetMinerConfiguration(args ...interface{}) (interface{}, error) {
-	authCtx := args[0].(context.Context)
+func GetMinerConfiguration(authCtx context.Context) (*pbV1.GetMinerConfigurationResponse, error) {
 	minerConfigResponse, err := configClient.GetMinerConfiguration(authCtx, &pbV1.GetMinerConfigurationRequest{})
 	if err != nil {
 		return nil, err
@@ -76,9 +76,30 @@ func GetMinerConfiguration(args ...interface{}) (interface{}, error) {
 	return minerConfigResponse, nil
 }
 
+// Get Miner Details
+func GetMinerDetails(authCtx context.Context) (*pbV1.GetMinerDetailsResponse, error) {
+	minerDetailsResponse, err := minerServiceClient.GetMinerDetails(authCtx, &pbV1.GetMinerDetailsRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	return minerDetailsResponse, nil
+}
+
+// Get Miner Stats
+func GetMinerStats(authCtx context.Context) (*pbV1.GetMinerStatsResponse, error) {
+	minerStatsResponse, err := minerServiceClient.GetMinerStats(authCtx, &pbV1.GetMinerStatsRequest{})
+
+	if err != nil {
+		return nil, fmt.Errorf("wrapped: %w", ErrGetMinerStats{err.Error()})
+	}
+
+	return minerStatsResponse, nil
+}
+
 // Get Miner Firmware Version
-func GetAPIVersion(args ...interface{}) (interface{}, error) {
-	authCtx := args[0].(context.Context)
+func GetAPIVersion(authCtx context.Context) (*pb.ApiVersion, error) {
+
 	apiVersion, err := apiVersionClient.GetApiVersion(authCtx, &pb.ApiVersionRequest{})
 	if err != nil {
 		return nil, err
@@ -87,10 +108,36 @@ func GetAPIVersion(args ...interface{}) (interface{}, error) {
 	return apiVersion, nil
 }
 
-// Login
-func Login(args ...interface{}) (interface{}, error) {
-	headerMD := args[0].(*metadata.MD)
+// LoginWrapper
+func (app *Config) LoginWrapper() error {
+	headerMD := metadata.MD{}
 
+	loginResponse, err := Login(&headerMD)
+	if err != nil {
+		log.Fatalf("could not login: %v", err)
+		return err
+	} else {
+		log.Println("Login successful")
+	}
+
+	authTokens := headerMD.Get(app.AuthToken.Key)
+	if len(authTokens) == 0 {
+		log.Fatal("authorization token not found in headers")
+	}
+	app.AuthToken.Value = authTokens[0] // Taking the first token
+	app.AuthToken.TimeOutS = int(loginResponse.TimeoutS)
+
+	log.Println("authTokenValue: ", app.AuthToken.Value)
+
+	// Attach auth token to context
+	md := metadata.New(map[string]string{"authorization": app.AuthToken.Value})
+	authCtx = metadata.NewOutgoingContext(ctx, md)
+
+	return nil
+}
+
+// Login
+func Login(headerMD *metadata.MD) (*pbV1.LoginResponse, error) {
 	loginReq := &pbV1.LoginRequest{
 		Username: app.MinerUsername,
 		Password: app.MinerPassword,
@@ -105,8 +152,7 @@ func Login(args ...interface{}) (interface{}, error) {
 }
 
 // Stops Miner
-func MinerStop(args ...interface{}) (interface{}, error) {
-	authCtx := args[0].(context.Context)
+func MinerStop(authCtx context.Context) (interface{}, error) {
 	_, err := actionsClient.Stop(authCtx, &pbV1.StopRequest{})
 	if err != nil {
 		return nil, err
@@ -116,8 +162,7 @@ func MinerStop(args ...interface{}) (interface{}, error) {
 }
 
 // Starts Miner
-func MinerStart(args ...interface{}) (interface{}, error) {
-	authCtx := args[0].(context.Context)
+func MinerStart(authCtx context.Context) (interface{}, error) {
 	_, err := actionsClient.Start(authCtx, &pbV1.StartRequest{})
 	if err != nil {
 		return nil, err
@@ -127,10 +172,7 @@ func MinerStart(args ...interface{}) (interface{}, error) {
 }
 
 // Set Power Target of the Miner
-func MinerSetPowerTarget(args ...interface{}) (interface{}, error) {
-	authCtx := args[0].(context.Context)
-	powerThreshold := args[1].(uint64)
-
+func MinerSetPowerTarget(authCtx context.Context, powerThreshold uint64) (interface{}, error) {
 	_, err := performanceClient.SetPowerTarget(authCtx, &pbV1.SetPowerTargetRequest{
 		SaveAction: pbV1.SaveAction_SAVE_ACTION_SAVE_AND_APPLY,
 		PowerTarget: &pbV1.Power{

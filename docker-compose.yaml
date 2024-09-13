@@ -1,6 +1,8 @@
 services:
-  invt:
+  miner-and-commander:
     image: misterdelle/miner-and-commander
     restart: unless-stopped
+    ports:
+      - "8081:8081"
     volumes:
       - "./.env:/.env"

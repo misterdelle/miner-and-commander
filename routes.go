@@ -13,9 +13,15 @@ func (app *Config) routes() http.Handler {
 
 	// set up middleware
 	mux.Use(middleware.Recoverer)
+	// Register with router
+	mux.Use(Logger)
+	// Register with router
+	// mux.Use(AuthChecker)
 
 	// define application routes
-	mux.Get("/", nil)
+	mux.Get("/MinerConfiguration", app.GetMinerConfiguration)
+	mux.Get("/MinerDetails", app.GetMinersDetails)
+	mux.Get("/MinerStats", app.GetMinersStats)
 
 	return mux
 }

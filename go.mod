@@ -17,6 +17,7 @@ require (
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/toorop/go-dkim v0.0.0-20240103092955-90b7d1423f92 // indirect
 	github.com/vanng822/css v1.0.1 // indirect
