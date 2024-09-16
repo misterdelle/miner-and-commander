@@ -29,11 +29,6 @@ import (
 //go:embed templates
 var templates embed.FS
 
-// var ErrGetMinerStats = errors.New("error getting miner stats")
-// var BOSminerNotRunningError = errors.New("BOSminer is not running")
-// var BOSminerAPIConnectionError = errors.New("BOSminer API connection error: Connection refused (os error 111)")
-// var BOSminerAPIConnectionError = errors.New("os error 111")
-
 type ErrGetMinerStats struct {
 	s string
 }
@@ -161,7 +156,7 @@ func init() {
 func main() {
 
 	retryOpts := []retry.CallOption{
-		retry.WithMax(1_000),
+		retry.WithMax(10),
 		retry.WithBackoff(retry.BackoffExponential(100 * time.Millisecond)),
 		retry.WithCodes(codes.Unavailable),
 		retry.WithOnRetryCallback(OnRetryCallback),

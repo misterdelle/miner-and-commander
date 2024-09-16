@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos"
 	pbV1 "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
@@ -89,8 +90,18 @@ func GetMinerDetails(authCtx context.Context) (*pbV1.GetMinerDetailsResponse, er
 // Get Miner Stats
 func GetMinerStats(authCtx context.Context) (*pbV1.GetMinerStatsResponse, error) {
 	minerStatsResponse, err := minerServiceClient.GetMinerStats(authCtx, &pbV1.GetMinerStatsRequest{})
-
 	if err != nil {
+		errStatus, _ := status.FromError(err)
+		fmt.Println(errStatus.Message())
+		fmt.Println(errStatus.Code())
+
+		for _, d := range errStatus.Details() {
+			switch info := d.(type) {
+			default:
+				log.Printf("Details type: %s", info)
+			}
+		}
+
 		return nil, fmt.Errorf("wrapped: %w", ErrGetMinerStats{err.Error()})
 	}
 

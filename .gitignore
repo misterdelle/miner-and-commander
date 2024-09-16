@@ -4,3 +4,4 @@
 .env.svil.remote
 build/
 pkg/
+.vscode
