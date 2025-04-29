@@ -5,6 +5,9 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	cb "github.com/emirpasic/gods/queues/circularbuffer"
+	"github.com/misterdelle/miner-and-commander/pkg/miner-ops"
+	"github.com/misterdelle/miner-and-commander/pkg/model"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +25,8 @@ import (
 	"github.com/joho/godotenv"
 	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos"
 	pbV1 "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 // Embed the entire directory.
@@ -29,9 +34,12 @@ import (
 //go:embed templates
 var templates embed.FS
 
-type ErrGetMinerStats struct {
-	s string
-}
+var stationData = model.NewStation()
+
+var minerConfigurations = map[string]model.MinerConfiguration{}
+var pvRead = cb.New(30)
+
+//var minerOperations *miner_ops.MinerOps
 
 type AuthenticationToken struct {
 	Key      string
@@ -47,8 +55,9 @@ type Config struct {
 	MinerUsername string
 	MinerPassword string
 
-	StartTimer bool
-	fasceMap   map[string]uint64
+	StartTimer             bool
+	TimerIntervalinMinutes int
+	fasceMap               map[string]uint64
 
 	EMailSend         bool
 	EMailSMTPHost     string
@@ -62,6 +71,14 @@ type Config struct {
 	Mailer       Mail
 
 	AuthToken AuthenticationToken
+
+	MQTTURL       string
+	MQTTUser      string
+	MQTTPassword  string
+	MQTTTopicName string
+	MQTTClient    mqtt.Client
+
+	MinerOperations *miner_ops.MinerOps
 }
 
 var app Config
@@ -113,6 +130,7 @@ func init() {
 	app.MinerPassword = os.Getenv("MinerPassword")
 
 	app.StartTimer, _ = strconv.ParseBool(os.Getenv("StartTimer"))
+	app.TimerIntervalinMinutes, _ = strconv.Atoi(os.Getenv("TimerIntervalinMinutes"))
 
 	// Thresholds configuration
 	fascia1PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia1PowerThreshold"))
@@ -151,9 +169,38 @@ func init() {
 	}
 	app.AuthToken = authToken
 
+	//
+	// Configurazione Server MQTT
+	//
+	app.MQTTURL = os.Getenv("MQTT.URL")
+	app.MQTTUser = os.Getenv("MQTT.User")
+	app.MQTTPassword = os.Getenv("MQTT.Password")
+	app.MQTTTopicName = os.Getenv("MQTT.Prefix")
+
+	//
+	// Carico la mappa delle configurazioni del miner
+	//
+	model.LoadMinerConfigurationsMap(minerConfigurations)
 }
 
 func main() {
+
+	var broker = app.MQTTURL
+	mqttOpts := mqtt.NewClientOptions()
+	mqttOpts.AddBroker(broker)
+	mqttOpts.SetClientID("go_mqtt_client")
+	mqttOpts.SetUsername(app.MQTTUser)
+	mqttOpts.SetPassword(app.MQTTPassword)
+	mqttOpts.SetConnectRetry(true)
+	mqttOpts.OnConnect = connectHandler
+	mqttOpts.OnConnectionLost = connectLostHandler
+	app.MQTTClient = mqtt.NewClient(mqttOpts)
+
+	if token := app.MQTTClient.Connect(); token.Wait() && token.Error() != nil {
+		log.Fatalf(fmt.Sprintf("Error connecting to MQTT broker: %s", token.Error()))
+	}
+
+	go app.subscribeTopic()
 
 	retryOpts := []retry.CallOption{
 		retry.WithMax(10),
@@ -164,7 +211,7 @@ func main() {
 
 	credsOpt := grpc.WithTransportCredentials(insecure.NewCredentials())
 
-	opts := []grpc.DialOption{
+	grpcOpts := []grpc.DialOption{
 		credsOpt,
 		grpc.WithChainUnaryInterceptor(
 			retry.UnaryClientInterceptor(retryOpts...),
@@ -173,11 +220,14 @@ func main() {
 	}
 
 	// Set up a connection to the server.
-	conn, err := grpc.NewClient(app.MinerAddress, opts...)
+	conn, err := grpc.NewClient(app.MinerAddress, grpcOpts...)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
+
+	ctx = context.Background()
+	authCtx = ctx
 
 	authClient = pbV1.NewAuthenticationServiceClient(conn)
 	configClient = pbV1.NewConfigurationServiceClient(conn)
@@ -186,12 +236,12 @@ func main() {
 	apiVersionClient = pb.NewApiVersionServiceClient(conn)
 	minerServiceClient = pbV1.NewMinerServiceClient(conn)
 
-	ctx = context.Background()
+	app.MinerOperations = miner_ops.NewMinerOps(authCtx, apiVersionClient, configClient, actionsClient, minerServiceClient, performanceClient)
 
 	// Get Miner Firmware Version
 	// Non è necessaria la login
 	log.Println("Fetching miner firmware version")
-	apiVersion, err := GetAPIVersion(ctx)
+	apiVersion, err := app.MinerOperations.GetAPIVersion()
 	if err != nil {
 		log.Fatalf("could not get miner firmware version: %v", err)
 	}
@@ -233,61 +283,76 @@ func main() {
 	if app.StartTimer {
 		// taskScheduler := chrono.NewDefaultTaskScheduler()
 
-		for k, v := range app.fasceMap {
-			startCronTime := k
-			powerThreshold := v
+		/*
+			for k, v := range app.fasceMap {
+				startCronTime := k
+				powerThreshold := v
 
-			if startCronTime != "-" {
-				taskFascia, err := taskScheduler.ScheduleWithCron(func(ctx context.Context) {
-					log.Printf("Scheduled Task With Cron: %v", powerThreshold)
+				if startCronTime != "-" {
+					taskFascia, err := taskScheduler.ScheduleWithCron(func(ctx context.Context) {
+						log.Printf("Scheduled Task With Cron: %v", powerThreshold)
 
-					var msgBody []string
+						var msgBody []string
 
-					if powerThreshold == 0 {
-						/*
-						* Se la powerThreshold è uguale zero spengo il miner
-						 */
-						log.Println("Stopping miner")
+						if powerThreshold == 0 {
+							//
+							// Se la powerThreshold è uguale zero spengo il miner
+							//
+							log.Println("Stopping miner")
 
-						_, err := MinerStop(authCtx)
-						if err != nil {
-							log.Println("could not stop miner", err)
+							_, err := MinerStop(authCtx)
+							if err != nil {
+								log.Println("could not stop miner", err)
+							}
+
+							msgBody = append(msgBody, "Stopped miner")
+						} else {
+							//
+							// Se la powerThreshold è maggiore di zero nel dubbio lo faccio partire e poi
+							// setto la powerThreshold sul miner
+							//
+
+							log.Println("Starting miner")
+
+							_, err := MinerStart(authCtx)
+							if err != nil {
+								log.Println("could not start miner", err)
+							}
+
+							log.Println("Setting Power Target to ", powerThreshold)
+
+							_, err = MinerSetPowerTarget(authCtx, powerThreshold)
+							if err != nil {
+								log.Printf("could not set power target: %v", err)
+							}
+
+							msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v", powerThreshold))
 						}
 
-						msgBody = append(msgBody, "Stopped miner")
-					} else {
-						/*
-						* Se la powerThreshold è maggiore di zero nel dubbio lo faccio partire e poi
-						* setto la powerThreshold sul miner
-						 */
-
-						log.Println("Starting miner")
-
-						_, err := MinerStart(authCtx)
-						if err != nil {
-							log.Println("could not start miner", err)
-						}
-
-						log.Println("Setting Power Target to ", powerThreshold)
-
-						_, err = MinerSetPowerTarget(authCtx, powerThreshold)
-						if err != nil {
-							log.Printf("could not set power target: %v", err)
-						}
-
-						msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v", powerThreshold))
+						app.sendEMail(msgBody)
+					}, startCronTime)
+					if err != nil {
+						log.Printf("Errore: %s", err)
+						return
 					}
 
-					app.sendEMail(msgBody)
-				}, startCronTime)
-				if err != nil {
-					log.Printf("Errore: %s", err)
-					return
+					taskFascia.IsCancelled()
 				}
-
-				taskFascia.IsCancelled()
 			}
-		}
+		*/
+
+		ticker := time.NewTicker(time.Duration(app.TimerIntervalinMinutes) * time.Minute)
+
+		go func() {
+			for {
+				select {
+				case t := <-ticker.C:
+					log.Printf("Tick at: %v\n", t)
+					log.Println("app.startCheck()")
+					app.startCheck()
+				}
+			}
+		}()
 
 	}
 
@@ -309,6 +374,10 @@ func (app *Config) listenForShutdown() {
 
 func (app *Config) shutdown() {
 	// perform any cleanup tasks
+
+	app.MQTTClient.Unsubscribe(app.MQTTTopicName)
+	app.MQTTClient.Disconnect(250)
+
 	log.Println("Shutting down application...")
 }
 
@@ -332,6 +401,98 @@ func OnRetryCallback(ctx context.Context, attempt uint, err error) {
 	log.Printf("grpc_retry attempt: %d, backoff for %v", attempt, err)
 }
 
-func (e ErrGetMinerStats) Error() string {
-	return e.s
+var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
+	log.Println("Connected")
+	go app.subscribeTopic()
+}
+
+var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
+	log.Printf("Connect lost: %v", err)
+}
+
+func (app *Config) subscribeTopic() {
+	topicFilter := map[string]byte{
+		app.MQTTTopicName + "/station/lastUpdateTime":          0,
+		app.MQTTTopicName + "/station/totalPowerFromPV":        0,
+		app.MQTTTopicName + "/station/currentConsumptionPower": 0,
+		app.MQTTTopicName + "/station/batterySOC":              0,
+		app.MQTTTopicName + "/station/batteryPower":            0,
+		app.MQTTTopicName + "/LoadInfo/Load C/Load C Power":    0,
+	}
+
+	if token := app.MQTTClient.SubscribeMultiple(topicFilter, onMessageReceived); token.Wait() && token.Error() != nil {
+		log.Fatalf(fmt.Sprintf("Error subscribing to topic: %s", token.Error()))
+	}
+}
+
+func (app *Config) startCheck() {
+	var batterySOCThreshold float32 = 80
+	var msgBody []string
+
+	//
+	// Faccio partire il miner se:
+	// 1) le batterie sono almeno al 80%
+	// 2) Sto producendo tra i 500W ed i 1000W setto il miner a 300W con una sola Hashboard abilitata
+	// 3) Sto producendo tra i 1001W ed i 1500W setto il miner a 600W con due Hashboard abilitate
+	// 4) Sto producendo tra i 1501W ed i 2000W setto il miner a 1200W con tutte e tre le Hashboard abilitate
+	// 5) Sto producendo tra i 2001W ed i 2500W setto il miner a 1500W con tutte e tre le Hashboard abilitate
+	// 6) Sto producendo tra i 2501W ed i 3000W setto il miner a 2000W con tutte e tre le Hashboard abilitate
+	// 7) Sto producendo tra i 3001W ed i 3500W setto il miner a 2500W con tutte e tre le Hashboard abilitate
+	// 8) Sto producendo oltre i 3501w setto il miner a 3068W con tutte e tre le Hashboard abilitate
+	//
+	if stationData.CurrentBatterySOC >= batterySOCThreshold {
+		totalPowerFromPV := stationData.CurrentTotalPowerFromPV
+
+		if totalPowerFromPV >= 500 && totalPowerFromPV <= 1000 {
+			minerConfig := minerConfigurations["300"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else if totalPowerFromPV >= 1001 && totalPowerFromPV <= 1500 {
+			minerConfig := minerConfigurations["600"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else if totalPowerFromPV >= 1501 && totalPowerFromPV <= 2000 {
+			minerConfig := minerConfigurations["1200"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else if totalPowerFromPV >= 2001 && totalPowerFromPV <= 2500 {
+			minerConfig := minerConfigurations["1500"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else if totalPowerFromPV >= 2501 && totalPowerFromPV <= 3000 {
+			minerConfig := minerConfigurations["2000"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else if totalPowerFromPV >= 3001 && totalPowerFromPV <= 3500 {
+			minerConfig := minerConfigurations["2500"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else if totalPowerFromPV >= 3501 {
+			minerConfig := minerConfigurations["3068"]
+			app.MinerOperations.SetMinerConfiguration(&minerConfig)
+			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		} else {
+			msg := fmt.Sprintf("Batterie sopra al %.2f%%, ma produzione insufficiente, fermo il miner", batterySOCThreshold)
+			log.Println(msg)
+
+			//
+			// Nel dubbio fermo il miner
+			//
+			log.Println("Stopping miner")
+
+			_, err := app.MinerOperations.MinerStop()
+			if err != nil {
+				log.Println("could not stop miner", err)
+			}
+
+			msgBody = append(msgBody, msg)
+		}
+	} else {
+		msg := fmt.Sprintf("Batterie sotto al %.2f%%, non faccio nulla", batterySOCThreshold)
+		log.Println(msg)
+
+		msgBody = append(msgBody, msg)
+	}
+
+	app.sendEMail(msgBody)
 }

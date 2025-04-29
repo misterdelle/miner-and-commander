@@ -1,28 +1,30 @@
-# Braiins OS+ Public API
+# Braiins OS Public API
 
-This repository contains protocol buffers for the new Braiins OS+ Public API, which is based on gRPC API technology.
+This repository contains protocol buffers for the new Braiins OS Public API, which is based on gRPC API technology.
 
 
 ### Versions
 
-| Public API Version | BOS version |
-|--------------------|-------------|
-| 1.2.0              | 24.06       |
-| 1.1.0              | 24.04       |
-| 1.0.0              | 24.03       |
-| 1.0.0-beta.6       | 24.02       |
-| 1.0.0-beta.5       | 23.12       |
-| 1.0.0-beta.4       | 23.10.1     |
-| 1.0.0-beta.3       | 23.10       |
-| 1.0.0-beta.2       | 23.08       |
-| 1.0.0-beta.1       | 23.05       |
-| 1.0.0-beta         | 23.04       |
-| 1.0.0-alpha.1      | 23.03.3     |
-| 1.0.0-alpha        | 23.03       |
+| Public API Version | Braiins OS version |
+|--------------------|--------------------|
+| 1.4.0              | 25.01              |
+| 1.3.0              | 24.09              |
+| 1.2.0              | 24.06              |
+| 1.1.0              | 24.04              |
+| 1.0.0              | 24.03              |
+| 1.0.0-beta.6       | 24.02              |
+| 1.0.0-beta.5       | 23.12              |
+| 1.0.0-beta.4       | 23.10.1            |
+| 1.0.0-beta.3       | 23.10              |
+| 1.0.0-beta.2       | 23.08              |
+| 1.0.0-beta.1       | 23.05              |
+| 1.0.0-beta         | 23.04              |
+| 1.0.0-alpha.1      | 23.03.3            |
+| 1.0.0-alpha        | 23.03              |
 
 ### Overview
 
-The Braiins OS+ Public API, introduced in version 23.03, represents a significant milestone in our platform's evolution. This API sets a standard for all present and forthcoming hardware variants, irrespective of their manufacturer. It provides a unified interface for interacting with mining hardware, enabling seamless integration with third-party applications and services. The API is designed to be intuitive, efficient, and versatile, offering a wide range of functionalities to meet diverse requirements.
+The Braiins OS Public API, introduced in version 23.03, represents a significant milestone in our platform's evolution. This API sets a standard for all present and forthcoming hardware variants, irrespective of their manufacturer. It provides a unified interface for interacting with mining hardware, enabling seamless integration with third-party applications and services. The API is designed to be intuitive, efficient, and versatile, offering a wide range of functionalities to meet diverse requirements.
 
 ### Examples
 
@@ -33,9 +35,9 @@ We've curated a collection of examples demonstrating the utilization of our Publ
 gRPC is a high-performance remote procedure call (RPC) framework developed by Google. It allows developers to create efficient and reliable communications between client and server applications running on different platforms and written in different programming languages. Read more about gRPC at **[grpc.io](https://grpc.io)**
 
 ### Prerequisites
-* Miner must have port 50051 enabled. As of BOS+ version 23.03.1, it should be enabled by default.
+* Miner must have port 50051 enabled. As of Braiins OS version 23.03.1, it should be enabled by default.
 
-There is no specific prerequisite for using BOS+ Public API. It is possible to directly access it using standard GUI tools like **[Postman](https://www.postman.com)**, **[Kreya](https://kreya.app)** or CLI tool like **[grpcurl](https://github.com/fullstorydev/grpcurl)**. Please find an example how to access gRPC api using **grpcurl** below.
+There is no specific prerequisite for using Braiins OS Public API. It is possible to directly access it using standard GUI tools like **[Postman](https://www.postman.com)**, **[Kreya](https://kreya.app)** or CLI tool like **[grpcurl](https://github.com/fullstorydev/grpcurl)**. Please find an example how to access gRPC api using **grpcurl** below.
 
 #### Installation
 Read **https://github.com/fullstorydev/grpcurl**
@@ -70,7 +72,7 @@ service ActionsService {
 ```
 
 ### Reflection
-BOS+ Public API has gRPC Server Reflection enabled. gRPC Server Reflection provides information about publicly-accessible gRPC services on a server, and assists clients at runtime to construct RPC requests and responses without precompiled service information. It is used by gRPC CLI, which can be used to introspect server protos.
+Braiins OS Public API has gRPC Server Reflection enabled. gRPC Server Reflection provides information about publicly-accessible gRPC services on a server, and assists clients at runtime to construct RPC requests and responses without precompiled service information. It is used by gRPC CLI, which can be used to introspect server protos.
 
 Readme more at **[gRPC Server Reflection Tutorial](https://grpc.github.io/grpc/core/md_doc_server_reflection_tutorial.html)**.
 
@@ -119,7 +121,7 @@ service AuthenticationService {
 ```
 
 ### Authentication
-The vast majority of requests necessitate authentication, achieved by presenting a token in the Authorization header. This token primarily functions as a session token rather than an authentication token, mirroring the approach in the Braiins OS+ GUI. Sessions are time-limited, with tokens expiring after 3600 seconds of inactivity. Renewed activity prolongs the session, effectively extending its expiration. Consequently, a session remains active if requests are consistently made within short intervals.
+The vast majority of requests necessitate authentication, achieved by presenting a token in the Authorization header. This token primarily functions as a session token rather than an authentication token, mirroring the approach in the Braiins OS GUI. Sessions are time-limited, with tokens expiring after 3600 seconds of inactivity. Renewed activity prolongs the session, effectively extending its expiration. Consequently, a session remains active if requests are consistently made within short intervals.
 
 #### How to get auth token
 Send a request with username and password to **Login** method in **AuthenticationService**. The token is present in the response body in `token` field.
@@ -142,8 +144,9 @@ $ grpcurl -plaintext -H 'authorization:FvZarvVQLCtzNaM6' miner:50051 braiins.bos
   "uid": "lAOJ0RbI6axyOyGf",
   "minerIdentity": {
     "brand": "MINER_BRAND_ANTMINER",
-    "model": "MINER_MODEL_ANTMINER_S19J_PRO",
+    "model": "MINER_MODEL_ANTMINER_S19J_PRO", // Deprecated, use miner_model
     "name": "Antminer S19J Pro"
+    "miner_model": "Antminer S19J Pro",
   },
   "platform": "PLATFORM_AM3_BBB",
   "bosMode": "BOS_MODE_NAND",
@@ -152,9 +155,13 @@ $ grpcurl -plaintext -H 'authorization:FvZarvVQLCtzNaM6' miner:50051 braiins.bos
     "major": "2022-09-13-0-11012d53-22.08-plus",
     "bosPlus": true
   },
-  "hostname": "bosminer",
+  "hostname": "localhost",
   "macAddress": "94:e3:6d:fb:89:ad",
-  "systemUptime": "90919"
+  "systemUptime": "90919",  // Deprecated, use system_uptime_s
+  "bosminer_uptime_s": "5050",
+  "system_uptime_s": "90919",
+  "status": "MINER_STATUS_NORMAL",
+  "kernel_version": "3.8.13+"
 }
 
 ```
@@ -164,8 +171,11 @@ It is important to note what version of Public API must be used for communicatio
 ```shell
 $ grpcurl -plaintext miner:50051 braiins.bos.ApiVersionService/GetApiVersion
 {
-  "major": "1",
-  "pre": "alpha"
+    "major": "1",
+    "minor": "3",
+    "patch": "0",
+    "pre": "",
+    "build": ""
 }
 ```
 **Note**: Version `1.0.0-<ver>` is actually `1.0.0-<ver>.0`. `0` as default value was dropped during serialization.
@@ -218,7 +228,7 @@ Contains miner related messages and **MinerService** with various methods to rea
 * **GetMinerStats** - method to read aggregated miner stats,
 * **GetErrors** - method to get all miner errors,
 * **GetHashboards** - method to read miner hashboards state and statistics,
-* **GetSupportArchive** - method to download BOS support archive,
+* **GetSupportArchive** - method to download Braiins OS support archive,
 * **EnableHashboards** - method to enable hashboards,
 * **DisableHashboards** - method to disable hashboards.
 

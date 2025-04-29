@@ -1,18 +1,13 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
-	"log"
-	"strings"
-
+	pbV1 "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
+	"github.com/misterdelle/miner-and-commander/pkg/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
-
-	pb "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos"
-	pbV1 "github.com/misterdelle/miner-and-commander/pb/github.com/braiins/bos-plus-api/braiins/bos/v1"
+	"log"
+	"strings"
 )
 
 func (app *Config) createMailer() Mail {
@@ -67,58 +62,6 @@ func formatJSON(str []byte, any interface{}) string {
 	return string(formattedString)
 }
 
-// Get Miner Configuration
-func GetMinerConfiguration(authCtx context.Context) (*pbV1.GetMinerConfigurationResponse, error) {
-	minerConfigResponse, err := configClient.GetMinerConfiguration(authCtx, &pbV1.GetMinerConfigurationRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return minerConfigResponse, nil
-}
-
-// Get Miner Details
-func GetMinerDetails(authCtx context.Context) (*pbV1.GetMinerDetailsResponse, error) {
-	minerDetailsResponse, err := minerServiceClient.GetMinerDetails(authCtx, &pbV1.GetMinerDetailsRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return minerDetailsResponse, nil
-}
-
-// Get Miner Stats
-func GetMinerStats(authCtx context.Context) (*pbV1.GetMinerStatsResponse, error) {
-	minerStatsResponse, err := minerServiceClient.GetMinerStats(authCtx, &pbV1.GetMinerStatsRequest{})
-	if err != nil {
-		errStatus, _ := status.FromError(err)
-		fmt.Println(errStatus.Message())
-		fmt.Println(errStatus.Code())
-
-		for _, d := range errStatus.Details() {
-			switch info := d.(type) {
-			default:
-				log.Printf("Details type: %s", info)
-			}
-		}
-
-		return nil, fmt.Errorf("wrapped: %w", ErrGetMinerStats{err.Error()})
-	}
-
-	return minerStatsResponse, nil
-}
-
-// Get Miner Firmware Version
-func GetAPIVersion(authCtx context.Context) (*pb.ApiVersion, error) {
-
-	apiVersion, err := apiVersionClient.GetApiVersion(authCtx, &pb.ApiVersionRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return apiVersion, nil
-}
-
 // LoginWrapper
 func (app *Config) LoginWrapper() error {
 	headerMD := metadata.MD{}
@@ -143,6 +86,7 @@ func (app *Config) LoginWrapper() error {
 	// Attach auth token to context
 	md := metadata.New(map[string]string{"authorization": app.AuthToken.Value})
 	authCtx = metadata.NewOutgoingContext(ctx, md)
+	app.MinerOperations.AuthCtx = authCtx
 
 	return nil
 }
@@ -162,38 +106,35 @@ func Login(headerMD *metadata.MD) (*pbV1.LoginResponse, error) {
 	return loginResponse, nil
 }
 
-// Stops Miner
-func MinerStop(authCtx context.Context) (interface{}, error) {
-	_, err := actionsClient.Stop(authCtx, &pbV1.StopRequest{})
-	if err != nil {
-		return nil, err
+func (app *Config) faiLaMediaDelleLetture() model.Station {
+	ms := model.NewStation()
+	var currentTotalPowerFromPV float32 = 0.0
+	var currentConsumptionPower float32 = 0.0
+	var currentGridFeedPower float32 = 0.0
+	var currentBatteryPower float32 = 0.0
+
+	it := pvRead.Iterator()
+	for it.Next() {
+		_, value := it.Index(), it.Value().(model.Station)
+		//log.Printf("index: %v, value: %v", index, value.LastUpdateTime)
+		ms.LastUpdateTime = value.LastUpdateTime
+		ms.LastUpdateTimeRead = true
+		ms.CurrentBatterySOC = value.CurrentBatterySOC
+		ms.CurrentBatterySOCRead = true
+		currentTotalPowerFromPV += value.CurrentTotalPowerFromPV
+		currentConsumptionPower += value.CurrentConsumptionPower
+		currentGridFeedPower += value.CurrentGridFeedPower
+		currentBatteryPower += value.CurrentBatteryPower
 	}
 
-	return nil, nil
-}
+	ms.CurrentTotalPowerFromPV = currentTotalPowerFromPV / float32(pvRead.Size())
+	ms.CurrentTotalPowerFromPVRead = true
+	ms.CurrentConsumptionPower = currentConsumptionPower / float32(pvRead.Size())
+	ms.CurrentConsumptionPowerRead = true
+	ms.CurrentGridFeedPower = currentGridFeedPower / float32(pvRead.Size())
+	ms.CurrentGridFeedPowerRead = true
+	ms.CurrentBatteryPower = currentBatteryPower / float32(pvRead.Size())
+	ms.CurrentBatteryPowerRead = true
 
-// Starts Miner
-func MinerStart(authCtx context.Context) (interface{}, error) {
-	_, err := actionsClient.Start(authCtx, &pbV1.StartRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
-}
-
-// Set Power Target of the Miner
-func MinerSetPowerTarget(authCtx context.Context, powerThreshold uint64) (interface{}, error) {
-	_, err := performanceClient.SetPowerTarget(authCtx, &pbV1.SetPowerTargetRequest{
-		SaveAction: pbV1.SaveAction_SAVE_ACTION_SAVE_AND_APPLY,
-		PowerTarget: &pbV1.Power{
-			Watt: powerThreshold,
-		},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+	return ms
 }

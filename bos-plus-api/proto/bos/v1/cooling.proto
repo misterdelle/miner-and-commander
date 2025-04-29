@@ -40,6 +40,12 @@ message CoolingAutoMode {
   braiins.bos.v1.Temperature hot_temperature = 2;
   // Temperature threshold at which BOSMiner shuts down in order to prevent overheating and damaging the miner.
   braiins.bos.v1.Temperature dangerous_temperature = 3;
+  // Minimum fan speed expressed as a value between 0 and 100. min_fan_speed must be less than max_fan_speed.
+  optional uint32 min_fan_speed = 4;
+  // Maximum fan speed expressed as a value between 0 and 100. max_fan_speed must be greater than min_fan_speed.
+  optional uint32 max_fan_speed = 5;
+  // Minimum number of fans required to have BOSminer operational.
+  optional uint32 minimum_required_fans = 6;
 }
 
 // Fans are kept at a fixed, user-defined speed, no matter the temperature.
@@ -52,22 +58,43 @@ message CoolingManualMode {
   braiins.bos.v1.Temperature hot_temperature = 2;
   // Temperature threshold at which BOSMiner shuts down in order to prevent overheating and damaging the miner.
   braiins.bos.v1.Temperature dangerous_temperature = 3;
+  // Temperature that the miner will try to maintain when power scaling is enabled
+  braiins.bos.v1.Temperature target_temperature = 4;
+  // Minimum number of fans required to have BOSminer operational.
+  optional uint32 minimum_required_fans = 5;
 }
 
 // Disable temperature control. May be dangerous.
+// DEPRECATED: Since Braiins OS 24.XX it is not possible to disable cooling mode.
 message CoolingDisabledMode {
+  option deprecated = true;
   // User defined fan speed expressed as a ratio between 0.0 and 1.0
   // where 0.0 means completely turned off and
   // 1.0 means running at full speed possible
   optional double fan_speed_ratio = 1;
 }
 
+message CoolingImmersionMode {
+  braiins.bos.v1.Temperature hot_temperature = 1;
+  braiins.bos.v1.Temperature dangerous_temperature = 2;
+  braiins.bos.v1.Temperature target_temperature = 3;
+}
+
+message CoolingHydroMode {
+  braiins.bos.v1.Temperature hot_temperature = 1;
+  braiins.bos.v1.Temperature dangerous_temperature = 2;
+  braiins.bos.v1.Temperature target_temperature = 3;
+}
+
 message CoolingConfiguration {
-  optional uint32 minimum_required_fans = 1;
+  // Minimum number of fans required to have BOSminer operational.
+  optional uint32 minimum_required_fans = 1 [deprecated = true];
   oneof mode {
     CoolingAutoMode auto = 2;
     CoolingManualMode manual = 3;
-    CoolingDisabledMode disabled = 4;
+    CoolingDisabledMode disabled = 4 [deprecated = true];
+    CoolingImmersionMode immersion = 5;
+    CoolingHydroMode hydro = 6;
   }
 }
 
@@ -75,7 +102,9 @@ enum CoolingMode {
   COOLING_MODE_UNSPECIFIED = 0;
   COOLING_MODE_AUTO = 1;
   COOLING_MODE_MANUAL = 2;
-  COOLING_MODE_DISABLED = 3;
+  COOLING_MODE_DISABLED = 3 [deprecated = true];
+  COOLING_MODE_IMMERSION = 4;
+  COOLING_MODE_HYDRO = 5;
 }
 
 message CoolingConstraints {
@@ -85,6 +114,8 @@ message CoolingConstraints {
   braiins.bos.v1.TemperatureConstraints dangerous_temperature = 4;
   braiins.bos.v1.DoubleConstraints fan_speed_ratio = 5;
   braiins.bos.v1.UInt32Constraints minimum_required_fans = 6;
+  braiins.bos.v1.UInt32Constraints min_fan_speed = 7;
+  braiins.bos.v1.UInt32Constraints max_fan_speed = 8;
 }
 
 // Structure which contain info about one specific miner fan.
@@ -137,9 +168,38 @@ message SetImmersionModeResponse {
   bool immersion_mode = 1;
 }
 
+// Request to set cooling mode
+message SetCoolingModeRequest {
+  // Save action
+  braiins.bos.v1.SaveAction save_action = 1;
+  // Cooling mode to set. If the cooling mode is changed, all fields that aren't relevant to the new mode are reset to default values.
+  // If the cooling mode values are updated, the new values are applied to the current mode.
+  oneof mode {
+    CoolingAutoMode auto = 2;
+    CoolingManualMode manual = 3;
+    CoolingImmersionMode immersion = 4;
+    CoolingHydroMode hydro = 5;
+  }
+}
+
+// Response for set cooling mode action.
+message SetCoolingModeResponse {
+  // The resulting cooling mode
+  oneof mode {
+    CoolingAutoMode auto = 1;
+    CoolingManualMode manual = 2;
+    CoolingImmersionMode immersion = 3;
+    CoolingHydroMode hydro = 4;
+  }
+}
+
 service CoolingService {
   // Method to get current temperature measurements and fans states
   rpc GetCoolingState(GetCoolingStateRequest) returns (GetCoolingStateResponse);
   // Method to set/toggle immersion mode
-  rpc SetImmersionMode(SetImmersionModeRequest) returns (SetImmersionModeResponse);
+  rpc SetImmersionMode(SetImmersionModeRequest) returns (SetImmersionModeResponse) {
+    option deprecated = true;
+  }
+  // Method to set cooling mode
+  rpc SetCoolingMode(SetCoolingModeRequest) returns (SetCoolingModeResponse);
 }

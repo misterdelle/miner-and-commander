@@ -43,6 +43,7 @@ enum Platform {
   PLATFORM_STM32MP157C_II1_AM2 = 5;
   PLATFORM_CVITEK_BM1_AM2 = 6;
   PLATFORM_ZYNQ_BM3_AM2 = 7;
+  PLATFORM_STM32MP157C_II2_BMM1 = 8;
 }
 
 // BOS modes enumeration
@@ -222,6 +223,8 @@ enum SupportArchiveFormat {
   SUPPORT_ARCHIVE_FORMAT_ZIP = 1;
   // BOS custom format
   SUPPORT_ARCHIVE_FORMAT_BOS = 2;
+  // Compressed encrypted zip format
+  SUPPORT_ARCHIVE_FORMAT_ZIP_ENCRYPTED = 3;
 }
 
 message GetSupportArchiveRequest {

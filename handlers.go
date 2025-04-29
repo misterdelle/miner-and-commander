@@ -7,8 +7,12 @@ import (
 	"net/http"
 )
 
+type ErrGetMinerStats struct {
+	s string
+}
+
 func (app *Config) GetMinersDetails(w http.ResponseWriter, r *http.Request) {
-	minerDetailsResponse, err := GetMinerDetails(authCtx)
+	minerDetailsResponse, err := app.MinerOperations.GetMinerDetails()
 	if err != nil {
 		log.Fatalf("could not get miner details: %v", err)
 	}
@@ -27,7 +31,7 @@ func (app *Config) GetMinersDetails(w http.ResponseWriter, r *http.Request) {
 func (app *Config) GetMinersStats(w http.ResponseWriter, r *http.Request) {
 	var myErr = ErrGetMinerStats{}
 
-	minerStatsResponse, err := GetMinerStats(authCtx)
+	minerStatsResponse, err := app.MinerOperations.GetMinerStats()
 	if err != nil {
 		// if err.Error() == "BOSminer API connection error: Connection refused (os error 111)" {
 		if errors.As(err, &myErr) {
@@ -55,7 +59,7 @@ func (app *Config) GetMinersStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Config) GetMinerConfiguration(w http.ResponseWriter, r *http.Request) {
-	minerConfigResponse, err := GetMinerConfiguration(authCtx)
+	minerConfigResponse, err := app.MinerOperations.GetMinerConfiguration()
 	if err != nil {
 		log.Fatalf("could not get miner configuration: %v", err)
 	}
@@ -69,4 +73,30 @@ func (app *Config) GetMinerConfiguration(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 
 	w.Write([]byte(jsonMinerConfigResponse))
+}
+
+func (app *Config) GetPVData(w http.ResponseWriter, r *http.Request) {
+	pvDataResponse, err := json.Marshal(stationData)
+	if err != nil {
+		log.Fatalf("could not convert to json station data: %v", err)
+	}
+	log.Println("pvDataResponse: ", string(pvDataResponse))
+	stationData = app.faiLaMediaDelleLetture()
+	pvDataResponse, err = json.Marshal(stationData)
+	if err != nil {
+		log.Fatalf("could not convert to json station data: %v", err)
+	}
+	log.Println("pvDataResponse: ", string(pvDataResponse))
+
+	w.Header().Set("Content-Type", "application/json")
+
+	w.Write([]byte(pvDataResponse))
+}
+
+func (app *Config) DoCheck(w http.ResponseWriter, r *http.Request) {
+	app.startCheck()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	w.Write([]byte("OK"))
 }
