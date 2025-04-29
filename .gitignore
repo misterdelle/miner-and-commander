@@ -3,6 +3,5 @@
 .env.svil.local
 .env.svil.remote
 build/
-pkg/
 .vscode
 .idea
