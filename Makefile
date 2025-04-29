@@ -3,7 +3,7 @@ APPLICATION_NAME ?= miner-and-commander
 GIT_HASH ?= $(shell git log --format="%h" -n 1)
 
 build:
-	env GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o build/${APPLICATION_NAME}.exe
+	env GOOS=windows GOARCH
 
 build-linux:
 	env GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o build/${APPLICATION_NAME}-linux

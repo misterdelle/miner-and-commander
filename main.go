@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 	cb "github.com/emirpasic/gods/queues/circularbuffer"
-	"github.com/misterdelle/miner-and-commander/pkg/miner-ops"
+	"github.com/misterdelle/miner-and-commander/pkg/miner_ops"
 	"github.com/misterdelle/miner-and-commander/pkg/model"
 	"log"
 	"net/http"
