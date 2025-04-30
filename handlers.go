@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -103,8 +102,6 @@ func (app *Config) DoCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Config) ApplyConfig(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("GET params were:", r.URL.Query())
-
 	cfgName := r.URL.Query().Get("cfg-name")
 	if cfgName != "" {
 		app.applyConfig(cfgName)

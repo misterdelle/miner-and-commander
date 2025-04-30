@@ -39,8 +39,6 @@ var stationData = model.NewStation()
 var minerConfigurations = map[string]model.MinerConfiguration{}
 var pvRead = cb.New(30)
 
-//var minerOperations *miner_ops.MinerOps
-
 type AuthenticationToken struct {
 	Key      string
 	Value    string
@@ -57,7 +55,7 @@ type Config struct {
 
 	StartTimer             bool
 	TimerIntervalinMinutes int
-	fasceMap               map[string]uint64
+	//fasceMap               map[string]uint64
 
 	EMailSend         bool
 	EMailSMTPHost     string
@@ -79,6 +77,8 @@ type Config struct {
 	MQTTClient    mqtt.Client
 
 	MinerOperations *miner_ops.MinerOps
+
+	MinerThresholdList []*model.MinerThreshold
 }
 
 var app Config
@@ -120,7 +120,7 @@ func init() {
 
 	app.WebPort = os.Getenv("WebPort")
 
-	app.fasceMap = make(map[string]uint64, 5)
+	//app.fasceMap = make(map[string]uint64, 5)
 
 	//
 	// Configurazione Miner
@@ -133,17 +133,37 @@ func init() {
 	app.TimerIntervalinMinutes, _ = strconv.Atoi(os.Getenv("TimerIntervalinMinutes"))
 
 	// Thresholds configuration
-	fascia1PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia1PowerThreshold"))
-	fascia2PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia2PowerThreshold"))
-	fascia3PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia3PowerThreshold"))
-	fascia4PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia4PowerThreshold"))
-	fascia5PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia5PowerThreshold"))
+	//fascia1PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia1PowerThreshold"))
+	//fascia2PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia2PowerThreshold"))
+	//fascia3PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia3PowerThreshold"))
+	//fascia4PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia4PowerThreshold"))
+	//fascia5PowerThreshold, _ := strconv.Atoi(os.Getenv("Fascia5PowerThreshold"))
 
-	app.fasceMap[os.Getenv("Fascia1StartCronTime")] = uint64(fascia1PowerThreshold)
-	app.fasceMap[os.Getenv("Fascia2StartCronTime")] = uint64(fascia2PowerThreshold)
-	app.fasceMap[os.Getenv("Fascia3StartCronTime")] = uint64(fascia3PowerThreshold)
-	app.fasceMap[os.Getenv("Fascia4StartCronTime")] = uint64(fascia4PowerThreshold)
-	app.fasceMap[os.Getenv("Fascia5StartCronTime")] = uint64(fascia5PowerThreshold)
+	//app.fasceMap[os.Getenv("Fascia1StartCronTime")] = uint64(fascia1PowerThreshold)
+	//app.fasceMap[os.Getenv("Fascia2StartCronTime")] = uint64(fascia2PowerThreshold)
+	//app.fasceMap[os.Getenv("Fascia3StartCronTime")] = uint64(fascia3PowerThreshold)
+	//app.fasceMap[os.Getenv("Fascia4StartCronTime")] = uint64(fascia4PowerThreshold)
+	//app.fasceMap[os.Getenv("Fascia5StartCronTime")] = uint64(fascia5PowerThreshold)
+
+	var mt1 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold1"))
+	var mt2 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold2"))
+	var mt3 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold3"))
+	var mt4 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold4"))
+	var mt5 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold5"))
+	var mt6 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold6"))
+	var mt7 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold7"))
+	var mt8 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold8"))
+	var mt9 *model.MinerThreshold = model.ParseMinerThreshold(os.Getenv("MinerThreshold9"))
+
+	app.MinerThresholdList = append(app.MinerThresholdList, mt1)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt2)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt3)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt4)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt5)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt6)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt7)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt8)
+	app.MinerThresholdList = append(app.MinerThresholdList, mt9)
 
 	//
 	// Configurazione Mailer
@@ -432,8 +452,8 @@ func (app *Config) startCheck() {
 	//
 	// Faccio partire il miner se:
 	// 1) le batterie sono almeno al 80%
-	// 2) Sto producendo tra i 500W ed i 1000W setto il miner a 300W con una sola Hashboard abilitata
-	// 3) Sto producendo tra i 1001W ed i 1500W setto il miner a 600W con due Hashboard abilitate
+	// 2) Sto producendo tra i 500W ed i 1000W setto il miner a 300W con una sola Hashboard abilitata (settata random ad ogni check)
+	// 3) Sto producendo tra i 1001W ed i 1500W setto il miner a 600W con due Hashboard abilitate (settate random ad ogni check)
 	// 4) Sto producendo tra i 1501W ed i 2000W setto il miner a 1200W con tutte e tre le Hashboard abilitate
 	// 5) Sto producendo tra i 2001W ed i 2500W setto il miner a 1500W con tutte e tre le Hashboard abilitate
 	// 6) Sto producendo tra i 2501W ed i 3000W setto il miner a 2000W con tutte e tre le Hashboard abilitate
@@ -443,50 +463,55 @@ func (app *Config) startCheck() {
 	if stationData.CurrentBatterySOC >= batterySOCThreshold {
 		totalPowerFromPV := stationData.CurrentTotalPowerFromPV
 
-		if totalPowerFromPV >= 500 && totalPowerFromPV <= 1000 {
-			minerConfig := minerConfigurations["300"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else if totalPowerFromPV >= 1001 && totalPowerFromPV <= 1500 {
-			minerConfig := minerConfigurations["600"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else if totalPowerFromPV >= 1501 && totalPowerFromPV <= 2000 {
-			minerConfig := minerConfigurations["1200"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else if totalPowerFromPV >= 2001 && totalPowerFromPV <= 2500 {
-			minerConfig := minerConfigurations["1500"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else if totalPowerFromPV >= 2501 && totalPowerFromPV <= 3000 {
-			minerConfig := minerConfigurations["2000"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else if totalPowerFromPV >= 3001 && totalPowerFromPV <= 3500 {
-			minerConfig := minerConfigurations["2500"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else if totalPowerFromPV >= 3501 {
-			minerConfig := minerConfigurations["3068"]
-			app.MinerOperations.SetMinerConfiguration(&minerConfig)
-			msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
-		} else {
-			msg := fmt.Sprintf("Batterie sopra al %.2f%%, ma produzione insufficiente, fermo il miner", batterySOCThreshold)
-			log.Println(msg)
+		minerConfigName := model.GetMinerConfigurationNameByThreshold(app.MinerThresholdList, uint64(totalPowerFromPV))
+		minerConfig := minerConfigurations[minerConfigName]
+		app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		msgBody = append(msgBody, fmt.Sprintf("Total Power from PV: %v Set Power Target to %v with Hashboards: %s", totalPowerFromPV, minerConfig.PowerThreshold, minerConfig.HashboardIds))
 
-			//
-			// Nel dubbio fermo il miner
-			//
-			log.Println("Stopping miner")
-
-			_, err := app.MinerOperations.MinerStop()
-			if err != nil {
-				log.Println("could not stop miner", err)
-			}
-
-			msgBody = append(msgBody, msg)
-		}
+		//if totalPowerFromPV >= 500 && totalPowerFromPV <= 1000 {
+		//	minerConfig := minerConfigurations["300"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else if totalPowerFromPV >= 1001 && totalPowerFromPV <= 1500 {
+		//	minerConfig := minerConfigurations["600"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else if totalPowerFromPV >= 1501 && totalPowerFromPV <= 2000 {
+		//	minerConfig := minerConfigurations["1200"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else if totalPowerFromPV >= 2001 && totalPowerFromPV <= 2500 {
+		//	minerConfig := minerConfigurations["1500"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else if totalPowerFromPV >= 2501 && totalPowerFromPV <= 3000 {
+		//	minerConfig := minerConfigurations["2000"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else if totalPowerFromPV >= 3001 && totalPowerFromPV <= 3500 {
+		//	minerConfig := minerConfigurations["2500"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else if totalPowerFromPV >= 3501 {
+		//	minerConfig := minerConfigurations["3068"]
+		//	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		//	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		//} else {
+		//	msg := fmt.Sprintf("Batterie sopra al %.2f%%, ma produzione insufficiente, fermo il miner", batterySOCThreshold)
+		//	log.Println(msg)
+		//
+		//	//
+		//	// Nel dubbio fermo il miner
+		//	//
+		//	log.Println("Stopping miner")
+		//
+		//	_, err := app.MinerOperations.MinerStop()
+		//	if err != nil {
+		//		log.Println("could not stop miner", err)
+		//	}
+		//
+		//	msgBody = append(msgBody, msg)
+		//}
 	} else {
 		msg := fmt.Sprintf("Batterie sotto al %.2f%%, non faccio nulla", batterySOCThreshold)
 		log.Println(msg)
