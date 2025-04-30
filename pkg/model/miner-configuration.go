@@ -1,22 +1,15 @@
 package model
 
-import (
-	"strconv"
-	"strings"
-)
-
 const HASHBOARD_NUMBER = 3
-
-type MinerThreshold struct {
-	MinPowerThreshold      uint64
-	MaxPowerThreshold      uint64
-	MinerConfigurationName string
-}
 
 type MinerConfiguration struct {
 	Name           string
 	PowerThreshold uint64
 	HashboardIds   []string
+}
+
+func NewMinerConfiguration() MinerConfiguration {
+	return MinerConfiguration{}
 }
 
 func LoadMinerConfigurationsMap(minerConfigurations map[string]MinerConfiguration) {
@@ -76,20 +69,26 @@ func LoadMinerConfigurationsMap(minerConfigurations map[string]MinerConfiguratio
 
 }
 
-func ParseMinerThreshold(line string) *MinerThreshold {
-	s := strings.Split(line, ",")
-	minPowerThreshold, _ := strconv.Atoi(s[0])
-	maxPowerThreshold, _ := strconv.Atoi(s[1])
-	minerConfigurationName := s[2]
-	return &MinerThreshold{MinPowerThreshold: uint64(minPowerThreshold), MaxPowerThreshold: uint64(maxPowerThreshold), MinerConfigurationName: minerConfigurationName}
-}
+//func GetMinerConfigurationNameByThreshold(minerThresholdList []*MinerThreshold, threshold uint64) string {
+//	rc := ""
+//	for i := range minerThresholdList {
+//		x := minerThresholdList[i]
+//		if x.MinPowerThreshold <= threshold && threshold <= x.MaxPowerThreshold {
+//			rc = x.MinerConfigurationName
+//			break
+//		}
+//	}
+//
+//	return rc
+//}
 
-func GetMinerConfigurationNameByThreshold(minerThresholdList []*MinerThreshold, threshold uint64) string {
-	rc := ""
+func GetMinerConfigurationByThreshold(minerConfigurations map[string]MinerConfiguration, minerThresholdList []*MinerThreshold, threshold uint64) MinerConfiguration {
+	rc := NewMinerConfiguration()
+
 	for i := range minerThresholdList {
 		x := minerThresholdList[i]
 		if x.MinPowerThreshold <= threshold && threshold <= x.MaxPowerThreshold {
-			rc = x.MinerConfigurationName
+			rc = minerConfigurations[x.MinerConfigurationName]
 			break
 		}
 	}
