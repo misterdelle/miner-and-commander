@@ -24,6 +24,7 @@ func (app *Config) routes() http.Handler {
 	mux.Get("/MinerStats", app.GetMinersStats)
 	mux.Get("/PVData", app.GetPVData)
 	mux.Get("/DoCheck", app.DoCheck)
+	mux.Get("/ApplyConfig", app.ApplyConfig)
 
 	return mux
 }

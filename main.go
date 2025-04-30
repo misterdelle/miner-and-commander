@@ -496,3 +496,13 @@ func (app *Config) startCheck() {
 
 	app.sendEMail(msgBody)
 }
+
+func (app *Config) applyConfig(minerConfigName string) {
+	var msgBody []string
+
+	minerConfig := minerConfigurations[minerConfigName]
+	app.MinerOperations.SetMinerConfiguration(&minerConfig)
+	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+
+	app.sendEMail(msgBody)
+}
