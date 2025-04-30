@@ -47,17 +47,23 @@ func (mo *MinerOps) GetMinerConfiguration() (*pbV1.GetMinerConfigurationResponse
 
 func (mo *MinerOps) SetMinerConfiguration(minerConfig *model.MinerConfiguration) {
 	if len(minerConfig.HashboardIds) == 1 {
-		var id = rand.IntN(model.HASHBOARD_NUMBER - 1)
-		id++
-		minerConfig.HashboardIds = []string{fmt.Sprintf("%d", id)}
+		var randId = rand.IntN(model.HASHBOARD_NUMBER)
+		if randId == 0 {
+			randId++
+		}
+		minerConfig.HashboardIds = []string{fmt.Sprintf("%d", randId)}
 	} else if len(minerConfig.HashboardIds) == 2 {
-		var id = rand.IntN(model.HASHBOARD_NUMBER - 1)
-		id++
+		var randId = rand.IntN(model.HASHBOARD_NUMBER)
+		if randId == 0 {
+			randId++
+		}
+		id := fmt.Sprintf("%d", randId)
 		var allHashboardIds = getAllHashboardIds()
 		var newHashboardIds []string
 		for v := range allHashboardIds {
-			if v != id {
-				newHashboardIds = append(newHashboardIds, fmt.Sprintf("%d", v))
+			appoId := allHashboardIds[v]
+			if appoId != id {
+				newHashboardIds = append(newHashboardIds, appoId)
 			}
 		}
 		minerConfig.HashboardIds = newHashboardIds
