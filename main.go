@@ -466,7 +466,11 @@ func (app *Config) startCheck() {
 		minerConfigName := model.GetMinerConfigurationNameByThreshold(app.MinerThresholdList, uint64(totalPowerFromPV))
 		minerConfig := minerConfigurations[minerConfigName]
 		app.MinerOperations.SetMinerConfiguration(&minerConfig)
-		msgBody = append(msgBody, fmt.Sprintf("Total Power from PV: %v Set Power Target to %v with Hashboards: %s", totalPowerFromPV, minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		if minerConfig.Name == "0" {
+			msgBody = append(msgBody, "Stopped miner")
+		} else {
+			msgBody = append(msgBody, fmt.Sprintf("Total Power from PV: %v Set Power Target to %v with Hashboards: %s", totalPowerFromPV, minerConfig.PowerThreshold, minerConfig.HashboardIds))
+		}
 
 		//if totalPowerFromPV >= 500 && totalPowerFromPV <= 1000 {
 		//	minerConfig := minerConfigurations["300"]

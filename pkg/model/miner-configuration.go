@@ -20,6 +20,12 @@ type MinerConfiguration struct {
 }
 
 func LoadMinerConfigurationsMap(minerConfigurations map[string]MinerConfiguration) {
+	minerConfigurations["0"] = MinerConfiguration{
+		Name:           "0W",
+		PowerThreshold: 0,
+		HashboardIds:   []string{""},
+	}
+
 	minerConfigurations["300"] = MinerConfiguration{
 		Name:           "300W",
 		PowerThreshold: 966,

@@ -46,6 +46,20 @@ func (mo *MinerOps) GetMinerConfiguration() (*pbV1.GetMinerConfigurationResponse
 }
 
 func (mo *MinerOps) SetMinerConfiguration(minerConfig *model.MinerConfiguration) {
+	if minerConfig.Name == "0W" {
+		//
+		// Se la powerThreshold è uguale zero spengo il miner
+		//
+		log.Println("Stopping miner")
+
+		_, err := mo.MinerStop()
+		if err != nil {
+			log.Println("could not stop miner", err)
+		}
+
+		return
+	}
+
 	if len(minerConfig.HashboardIds) == 1 {
 		var randId = rand.IntN(model.HASHBOARD_NUMBER)
 		if randId == 0 {
