@@ -52,8 +52,9 @@ type Config struct {
 	MinerUsername string
 	MinerPassword string
 
-	StartTimer             bool
-	TimerIntervalinMinutes int
+	StartTimer                 bool
+	TimerIntervalInMinutes     int
+	BatteryPercentageThreshold int
 
 	EMailSend         bool
 	EMailSMTPHost     string
@@ -128,7 +129,8 @@ func init() {
 	app.MinerPassword = os.Getenv("MinerPassword")
 
 	app.StartTimer, _ = strconv.ParseBool(os.Getenv("StartTimer"))
-	app.TimerIntervalinMinutes, _ = strconv.Atoi(os.Getenv("TimerIntervalinMinutes"))
+	app.TimerIntervalInMinutes, _ = strconv.Atoi(os.Getenv("TimerIntervalInMinutes"))
+	app.BatteryPercentageThreshold, _ = strconv.Atoi(os.Getenv("BatteryPercentageThreshold"))
 
 	//
 	// Configurazione Mailer
@@ -291,7 +293,7 @@ func main() {
 	// log.Print("task: ", task)
 
 	if app.StartTimer {
-		ticker := time.NewTicker(time.Duration(app.TimerIntervalinMinutes) * time.Minute)
+		ticker := time.NewTicker(time.Duration(app.TimerIntervalInMinutes) * time.Minute)
 
 		go func() {
 			for {
@@ -376,7 +378,7 @@ func (app *Config) subscribeTopic() {
 }
 
 func (app *Config) startCheck() {
-	var batterySOCThreshold float32 = 80
+	var batterySOCThreshold float32 = float32(app.BatteryPercentageThreshold)
 	var msgBody []string
 
 	//
@@ -392,9 +394,6 @@ func (app *Config) startCheck() {
 	//
 	if stationData.CurrentBatterySOC >= batterySOCThreshold {
 		totalPowerFromPV := stationData.CurrentTotalPowerFromPV
-
-		//minerConfigName := model.GetMinerConfigurationNameByThreshold(app.MinerThresholdList, uint64(totalPowerFromPV))
-		//minerConfig := app.MinerConfigurations[minerConfigName]
 
 		minerConfig := model.GetMinerConfigurationByThreshold(app.MinerConfigurations, app.MinerThresholdList, uint64(totalPowerFromPV))
 

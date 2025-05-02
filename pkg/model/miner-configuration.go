@@ -69,19 +69,6 @@ func LoadMinerConfigurationsMap(minerConfigurations map[string]MinerConfiguratio
 
 }
 
-//func GetMinerConfigurationNameByThreshold(minerThresholdList []*MinerThreshold, threshold uint64) string {
-//	rc := ""
-//	for i := range minerThresholdList {
-//		x := minerThresholdList[i]
-//		if x.MinPowerThreshold <= threshold && threshold <= x.MaxPowerThreshold {
-//			rc = x.MinerConfigurationName
-//			break
-//		}
-//	}
-//
-//	return rc
-//}
-
 func GetMinerConfigurationByThreshold(minerConfigurations map[string]MinerConfiguration, minerThresholdList []*MinerThreshold, threshold uint64) MinerConfiguration {
 	rc := NewMinerConfiguration()
 
