@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 	"log"
 	"math/rand/v2"
+	"time"
 )
 
 type ErrGetMinerStats struct {
@@ -45,8 +46,8 @@ func (mo *MinerOps) GetMinerConfiguration() (*pbV1.GetMinerConfigurationResponse
 	return minerConfigResponse, nil
 }
 
-func (mo *MinerOps) SetMinerConfiguration(minerConfig *model.MinerConfiguration) {
-	if minerConfig.Name == "0W" {
+func (mo *MinerOps) SetMinerConfiguration(currentMinerConfig, newMinerConfig *model.MinerConfiguration) {
+	if newMinerConfig.Name == "0W" {
 		//
 		// Se la powerThreshold è uguale zero spengo il miner
 		//
@@ -60,13 +61,13 @@ func (mo *MinerOps) SetMinerConfiguration(minerConfig *model.MinerConfiguration)
 		return
 	}
 
-	if len(minerConfig.HashboardIds) == 1 {
+	if len(newMinerConfig.HashboardIds) == 1 {
 		var randId = rand.IntN(model.HASHBOARD_NUMBER)
 		if randId == 0 {
 			randId++
 		}
-		minerConfig.HashboardIds = []string{fmt.Sprintf("%d", randId)}
-	} else if len(minerConfig.HashboardIds) == 2 {
+		newMinerConfig.HashboardIds = []string{fmt.Sprintf("%d", randId)}
+	} else if len(newMinerConfig.HashboardIds) == 2 {
 		var randId = rand.IntN(model.HASHBOARD_NUMBER)
 		if randId == 0 {
 			randId++
@@ -80,7 +81,7 @@ func (mo *MinerOps) SetMinerConfiguration(minerConfig *model.MinerConfiguration)
 				newHashboardIds = append(newHashboardIds, appoId)
 			}
 		}
-		minerConfig.HashboardIds = newHashboardIds
+		newMinerConfig.HashboardIds = newHashboardIds
 	}
 
 	//
@@ -96,9 +97,26 @@ func (mo *MinerOps) SetMinerConfiguration(minerConfig *model.MinerConfiguration)
 	//
 	// Setto il miner con la configurazione prevista
 	//
-	log.Printf("Setting Power Target to %s\n", minerConfig.Name)
+	log.Printf("Setting Power Target to %v with Hashboards: %s\n", newMinerConfig.PowerThreshold, newMinerConfig.HashboardIds)
 
-	_, err = mo.MinerSetHashboardsAndPowerTarget(*minerConfig)
+	if currentMinerConfig.PowerThreshold == newMinerConfig.PowerThreshold {
+		//
+		// Se la configurazione corrente ha la stessa powerThreshold riavvio il miner
+		//
+		_, err := mo.MinerStop()
+		if err != nil {
+			log.Println("could not stop miner", err)
+		}
+
+		time.Sleep(30 * time.Second)
+
+		_, err = mo.MinerStart()
+		if err != nil {
+			log.Println("could not start miner", err)
+		}
+	}
+
+	_, err = mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig)
 	if err != nil {
 		log.Printf("could not set power target: %v", err)
 	}

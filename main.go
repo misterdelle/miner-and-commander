@@ -75,7 +75,8 @@ type Config struct {
 	MQTTTopicName string
 	MQTTClient    mqtt.Client
 
-	MinerConfigurations map[string]model.MinerConfiguration
+	MinerConfigurations       map[string]model.MinerConfiguration
+	CurrentMinerConfiguration model.MinerConfiguration
 
 	MinerOperations *miner_ops.MinerOps
 
@@ -403,6 +404,7 @@ func (app *Config) startCheck() {
 		} else {
 			msgBody = append(msgBody, fmt.Sprintf("Total Power from PV: %v Set Power Target to %v with Hashboards: %s", totalPowerFromPV, minerConfig.PowerThreshold, minerConfig.HashboardIds))
 		}
+		app.CurrentMinerConfiguration = minerConfig
 	} else {
 		msg := fmt.Sprintf("Batterie sotto al %.2f%%, non faccio nulla", batterySOCThreshold)
 		log.Println(msg)
