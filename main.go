@@ -216,8 +216,8 @@ func main() {
 	go app.subscribeTopic()
 
 	retryOpts := []retry.CallOption{
-		retry.WithMax(10),
-		retry.WithBackoff(retry.BackoffExponential(100 * time.Millisecond)),
+		retry.WithMax(1_000_000),
+		retry.WithBackoff(retry.BackoffExponential(500 * time.Millisecond)),
 		retry.WithCodes(codes.Unavailable),
 		retry.WithOnRetryCallback(OnRetryCallback),
 	}
