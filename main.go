@@ -398,7 +398,7 @@ func (app *Config) startCheck() {
 
 		minerConfig := model.GetMinerConfigurationByThreshold(app.MinerConfigurations, app.MinerThresholdList, uint64(totalPowerFromPV))
 
-		app.MinerOperations.SetMinerConfiguration(&minerConfig)
+		app.MinerOperations.SetMinerConfiguration(&app.CurrentMinerConfiguration, &minerConfig)
 		if minerConfig.Name == "0" {
 			msgBody = append(msgBody, "Stopped miner")
 		} else {
