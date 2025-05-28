@@ -386,7 +386,7 @@ func (app *Config) startCheck() {
 
 	//
 	// Faccio partire il miner se:
-	// 1) le batterie sono almeno al 80%
+	// 1) le batterie sono almeno al 70% (Comunque un valore preso dal file di configurazione .env
 	// 2) Sto producendo tra i 500W ed i 1000W setto il miner a 300W con una sola Hashboard abilitata (settata random ad ogni check)
 	// 3) Sto producendo tra i 1001W ed i 1500W setto il miner a 600W con due Hashboard abilitate (settate random ad ogni check)
 	// 4) Sto producendo tra i 1501W ed i 2000W setto il miner a 1200W con tutte e tre le Hashboard abilitate
@@ -420,10 +420,34 @@ func (app *Config) startCheck() {
 func (app *Config) applyConfig(minerConfigName string) {
 	var msgBody []string
 
+	currentMinerConfig := &app.CurrentMinerConfiguration
+
+	if currentMinerConfig.PowerThreshold == 0 {
+		minerConfigurationResponse, err := app.MinerOperations.GetMinerConfiguration()
+		if err != nil {
+			log.Printf("could not get miner configuration: %v", err)
+		}
+
+		powerThreshold := minerConfigurationResponse.GetTuner().GetPowerTarget().GetWatt()
+		currentMinerConfig.Name = strconv.Itoa(int(powerThreshold)) + "W"
+		currentMinerConfig.PowerThreshold = powerThreshold
+
+		hashboards := minerConfigurationResponse.GetHashboardConfig().GetHashboards()
+		for v := range hashboards {
+			hashboard := hashboards[v]
+
+			if hashboard.GetEnabled() {
+				currentMinerConfig.HashboardIds = append(currentMinerConfig.HashboardIds, hashboard.GetId())
+			}
+		}
+
+		app.CurrentMinerConfiguration = *currentMinerConfig
+	}
+
 	minerConfig := app.MinerConfigurations[minerConfigName]
 	app.MinerOperations.SetMinerConfiguration(&app.CurrentMinerConfiguration, &minerConfig)
 	app.CurrentMinerConfiguration = minerConfig
-	msgBody = append(msgBody, fmt.Sprintf("Set Power Target to %v with Hashboards: %s", minerConfig.PowerThreshold, minerConfig.HashboardIds))
+	msgBody = append(msgBody, fmt.Sprintf("Setting Power Target from %v with Hashboards: %s to %v with Hashboards: %s", app.CurrentMinerConfiguration.PowerThreshold, app.CurrentMinerConfiguration.HashboardIds, minerConfig.PowerThreshold, minerConfig.HashboardIds))
 
 	app.sendEMail(msgBody)
 }

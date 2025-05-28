@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc/status"
 	"log"
 	"math/rand/v2"
-	"time"
 )
 
 type ErrGetMinerStats struct {
@@ -85,34 +84,24 @@ func (mo *MinerOps) SetMinerConfiguration(currentMinerConfig, newMinerConfig *mo
 	}
 
 	//
-	// Faccio partire il miner, poi setterò i dettagli
-	//
-	log.Println("Starting miner")
-
-	_, err := mo.MinerStart()
-	if err != nil {
-		log.Println("could not start miner", err)
-	}
-
-	//
 	// Setto il miner con la configurazione prevista
 	//
-	log.Printf("Setting Power Target to %v with Hashboards: %s\n", newMinerConfig.PowerThreshold, newMinerConfig.HashboardIds)
+	log.Printf("Setting Power Target from %v with Hashboards: %s to %v with Hashboards: %s\n", currentMinerConfig.PowerThreshold, currentMinerConfig.HashboardIds, newMinerConfig.PowerThreshold, newMinerConfig.HashboardIds)
 
-	if len(currentMinerConfig.HashboardIds) != len(newMinerConfig.HashboardIds) {
+	if len(currentMinerConfig.HashboardIds) == len(newMinerConfig.HashboardIds) {
 		//
-		// Se la configurazione nuova ha un numero di hashboard diverso da quella corrente riavvio il miner
+		// Se la configurazione nuova ha un numero di hashboard uguale a quella corrente
+		// non c'è bisogno di riavviare il miner, basta solo settare la power threshold
 		//
-		_, err = mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig, true)
+		_, err := mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig, false)
 		if err != nil {
 			log.Printf("could not set power target: %v", err)
 		}
 	} else {
 		//
-		// Se la configurazione nuova ha un numero di hashboard diverso da quella corrente
-		// non c'è bisogno di riavviare il miner, basta solo settare la power threshold
+		// Se la configurazione nuova ha un numero di hashboard diverso da quella corrente riavvio il miner
 		//
-		_, err = mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig, false)
+		_, err := mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig, true)
 		if err != nil {
 			log.Printf("could not set power target: %v", err)
 		}
@@ -181,6 +170,16 @@ func (mo *MinerOps) MinerStart() (interface{}, error) {
 	return nil, nil
 }
 
+// Retarts Miner
+func (mo *MinerOps) MinerRestart() (interface{}, error) {
+	_, err := mo.actionsClient.Restart(mo.AuthCtx, &pbV1.RestartRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
 // Set Power Target of the Miner
 func (mo *MinerOps) MinerSetPowerTarget(powerThreshold uint64) (interface{}, error) {
 	_, err := mo.performanceClient.SetPowerTarget(mo.AuthCtx, &pbV1.SetPowerTargetRequest{
@@ -228,33 +227,32 @@ func (mo *MinerOps) MinerSetHashboardsAndPowerTarget(mc model.MinerConfiguration
 	//
 	// Setto la Powerthreshold e applico le modifiche
 	//
-	_, err = mo.performanceClient.SetPowerTarget(mo.AuthCtx, &pbV1.SetPowerTargetRequest{
-		SaveAction: pbV1.SaveAction_SAVE_ACTION_SAVE_AND_APPLY,
-		PowerTarget: &pbV1.Power{
-			Watt: powerThreshold,
-		},
-	})
-
 	if restartMiner {
-		log.Println("Stopping miner")
+		log.Println("Saving miner configuration forcing apply")
 
-		_, err := mo.MinerStop()
+		_, err = mo.performanceClient.SetPowerTarget(mo.AuthCtx, &pbV1.SetPowerTargetRequest{
+			SaveAction: pbV1.SaveAction_SAVE_ACTION_SAVE_AND_FORCE_APPLY,
+			PowerTarget: &pbV1.Power{
+				Watt: powerThreshold,
+			},
+		})
+
 		if err != nil {
-			log.Println("could not stop miner", err)
+			return nil, err
 		}
+	} else {
+		log.Println("Saving miner configuration without forcing apply")
 
-		time.Sleep(time.Second * 30)
+		_, err = mo.performanceClient.SetPowerTarget(mo.AuthCtx, &pbV1.SetPowerTargetRequest{
+			SaveAction: pbV1.SaveAction_SAVE_ACTION_SAVE_AND_APPLY,
+			PowerTarget: &pbV1.Power{
+				Watt: powerThreshold,
+			},
+		})
 
-		log.Println("Starting miner")
-
-		_, err = mo.MinerStart()
 		if err != nil {
-			log.Println("could not start miner", err)
+			return nil, err
 		}
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	return nil, nil
