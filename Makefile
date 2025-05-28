@@ -13,6 +13,7 @@ build-arm:
 
 build-docker-amd:
 	docker build --tag ${DOCKER_USERNAME}/${APPLICATION_NAME}:${GIT_HASH} .
+	docker tag ${DOCKER_USERNAME}/${APPLICATION_NAME}:${GIT_HASH} ${DOCKER_USERNAME}/${APPLICATION_NAME}:latest
 
 build-docker-arm:
 	docker buildx build --platform linux/arm64/v8 --output type=docker -t ${DOCKER_USERNAME}/${APPLICATION_NAME}:${GIT_HASH} .
