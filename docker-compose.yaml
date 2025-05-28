@@ -1,6 +1,6 @@
 services:
   miner-and-commander:
-    image: misterdelle/miner-and-commander
+    image: misterdelle/miner-and-commander:latest
     restart: unless-stopped
     ports:
       - "8081:8081"
