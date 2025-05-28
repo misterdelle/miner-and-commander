@@ -84,18 +84,6 @@ func (mo *MinerOps) SetMinerConfiguration(currentMinerConfig, newMinerConfig *mo
 		newMinerConfig.HashboardIds = newHashboardIds
 	}
 
-	if len(currentMinerConfig.HashboardIds) != len(newMinerConfig.HashboardIds) {
-		//
-		// Fermo il miner
-		//
-		log.Println("Stopping miner")
-
-		_, err := mo.MinerStop()
-		if err != nil {
-			log.Println("could not stop miner", err)
-		}
-	}
-
 	//
 	// Faccio partire il miner, poi setterò i dettagli
 	//
@@ -111,15 +99,19 @@ func (mo *MinerOps) SetMinerConfiguration(currentMinerConfig, newMinerConfig *mo
 	//
 	log.Printf("Setting Power Target to %v with Hashboards: %s\n", newMinerConfig.PowerThreshold, newMinerConfig.HashboardIds)
 
-	if currentMinerConfig.PowerThreshold == newMinerConfig.PowerThreshold {
+	if len(currentMinerConfig.HashboardIds) != len(newMinerConfig.HashboardIds) {
 		//
-		// Se la configurazione corrente ha la stessa powerThreshold riavvio il miner
+		// Se la configurazione nuova ha un numero di hashboard diverso da quella corrente riavvio il miner
 		//
 		_, err = mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig, true)
 		if err != nil {
 			log.Printf("could not set power target: %v", err)
 		}
 	} else {
+		//
+		// Se la configurazione nuova ha un numero di hashboard diverso da quella corrente
+		// non c'è bisogno di riavviare il miner, basta solo settare la power threshold
+		//
 		_, err = mo.MinerSetHashboardsAndPowerTarget(*newMinerConfig, false)
 		if err != nil {
 			log.Printf("could not set power target: %v", err)
