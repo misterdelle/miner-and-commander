@@ -34,6 +34,8 @@ import (
 //go:embed templates
 var templates embed.FS
 
+const MaxUint = ^uint(0)
+
 var stationData = model.NewStation()
 
 var pvRead = cb.New(30)
@@ -216,7 +218,7 @@ func main() {
 	go app.subscribeTopic()
 
 	retryOpts := []retry.CallOption{
-		retry.WithMax(1_000_000),
+		retry.WithMax(MaxUint),
 		retry.WithBackoff(retry.BackoffExponential(500 * time.Millisecond)),
 		retry.WithCodes(codes.Unavailable),
 		retry.WithOnRetryCallback(OnRetryCallback),

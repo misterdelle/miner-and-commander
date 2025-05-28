@@ -84,8 +84,20 @@ func (mo *MinerOps) SetMinerConfiguration(currentMinerConfig, newMinerConfig *mo
 		newMinerConfig.HashboardIds = newHashboardIds
 	}
 
+	if len(currentMinerConfig.HashboardIds) != len(newMinerConfig.HashboardIds) {
+		//
+		// Fermo il miner
+		//
+		log.Println("Stopping miner")
+
+		_, err := mo.MinerStop()
+		if err != nil {
+			log.Println("could not stop miner", err)
+		}
+	}
+
 	//
-	// Nel dubbio faccio partire il miner, poi setterò i dettagli
+	// Faccio partire il miner, poi setterò i dettagli
 	//
 	log.Println("Starting miner")
 
