@@ -42,7 +42,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// LATEST_API_VERSION=1.4.0
+// LATEST_API_VERSION=1.5.0
 type ApiVersion struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
