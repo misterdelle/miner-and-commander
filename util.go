@@ -123,8 +123,18 @@ func (app *Config) faiLaMediaDelleLetture() model.Station {
 		ms.CurrentBatterySOCRead = true
 		currentTotalPowerFromPV += value.CurrentTotalPowerFromPV
 		currentConsumptionPower += value.CurrentConsumptionPower
-		currentGridFeedPower += value.CurrentGridFeedPower
-		currentBatteryPower += value.CurrentBatteryPower
+
+		if value.CurrentGridFeedPower == 0 {
+			currentGridFeedPower = 0
+		} else {
+			currentGridFeedPower += value.CurrentGridFeedPower
+		}
+
+		if value.CurrentBatteryPower == 0 {
+			currentBatteryPower = 0
+		} else {
+			currentBatteryPower += value.CurrentBatteryPower
+		}
 	}
 
 	ms.CurrentTotalPowerFromPV = currentTotalPowerFromPV / float32(pvRead.Size())
